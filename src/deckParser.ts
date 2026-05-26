@@ -245,5 +245,7 @@ function matchFirst(value: string, regex: RegExp) {
 }
 
 function unescapeScriptString(value: string) {
-  return value.replace(/\\(['"\\])/g, "$1").replace(/\\u([0-9a-fA-F]{4})/g, (_, code) => String.fromCharCode(parseInt(code, 16)));
+  return value
+    .replace(/\\(['"\\])/g, "$1")
+    .replace(/\\u([0-9a-fA-F]{4})/g, (_, code) => String.fromCharCode(parseInt(code, 16)));
 }

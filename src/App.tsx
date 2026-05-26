@@ -240,9 +240,12 @@ export function App() {
           <p className="eyebrow">Pokemon Card Solo Practice</p>
           <h1>ポケカ一人回し</h1>
         </div>
-        <div className="deck-summary">
-          <span>{totalCards || zoneTotals}枚</span>
-          {loadedCode && <small>deckID: {loadedCode}</small>}
+        <div className="topbar-actions">
+          <a className="page-link" href="./online.html">二人対戦へ</a>
+          <div className="deck-summary">
+            <span>{totalCards || zoneTotals}枚</span>
+            {loadedCode && <small>deckID: {loadedCode}</small>}
+          </div>
         </div>
       </header>
 

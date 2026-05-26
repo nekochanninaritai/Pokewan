@@ -21,7 +21,8 @@ textarea {
   font: inherit;
 }
 
-button {
+button,
+.page-link {
   align-items: center;
   background: #ffffff;
   border: 1px solid #cfd8d3;
@@ -34,13 +35,15 @@ button {
   justify-content: center;
   min-height: 42px;
   padding: 0.65rem 0.9rem;
+  text-decoration: none;
   transition:
     transform 0.16s ease,
     border-color 0.16s ease,
     background 0.16s ease;
 }
 
-button:hover:not(:disabled) {
+button:hover:not(:disabled),
+.page-link:hover {
   border-color: #2f806f;
   transform: translateY(-1px);
 }
@@ -127,6 +130,12 @@ h1 {
   color: #51615d;
   max-width: 36vw;
   overflow-wrap: anywhere;
+}
+
+.topbar-actions {
+  align-items: center;
+  display: flex;
+  gap: 10px;
 }
 
 .loader-panel,
