@@ -613,10 +613,264 @@ label span {
 
 @media (max-width: 900px) {
   body {
-    min-width: 900px;
+    min-width: 0;
+  }
+
+  button,
+  .home-link {
+    min-height: 44px;
+  }
+
+  .online-app {
+    padding: 10px;
+  }
+
+  .online-topbar {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  h1 {
+    font-size: 2rem;
+  }
+
+  .room-panel,
+  .battle-controls,
+  .deck-loader,
+  .quick-controls,
+  .player-board {
+    padding: 10px;
+  }
+
+  .room-actions,
+  .quick-controls,
+  .battle-controls,
+  .room-id {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .room-actions label {
+    flex: 1 1 auto;
+  }
+
+  .room-actions button,
+  .quick-controls button,
+  .battle-controls button,
+  .room-id button,
+  .home-link {
+    width: 100%;
+  }
+
+  .deck-loader {
+    grid-template-columns: 1fr;
+  }
+
+  .deck-code-row {
+    grid-template-columns: 1fr;
   }
 
   .players-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .player-board > header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .counts {
+    width: 100%;
+  }
+
+  .counts span {
+    flex: 1 1 30%;
+    text-align: center;
+  }
+
+  .status-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .board-layout {
+    grid-template-areas:
+      "active active"
+      "bench bench"
+      "hand hand"
+      "prizes deck"
+      "stadium stadium"
+      "discard lost";
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .zone {
+    min-height: 138px;
+  }
+
+  .zone-prizes,
+  .zone-active,
+  .zone-bench,
+  .zone-hand,
+  .zone-stadium,
+  .zone-deck,
+  .zone-discard,
+  .zone-lostZone {
+    min-height: 138px;
+  }
+
+  .zone-active {
+    min-height: 210px;
+  }
+
+  .zone-bench,
+  .zone-hand {
+    min-height: 165px;
+  }
+
+  .zone header {
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .zone h3 {
+    font-size: 0.9rem;
+  }
+
+  .zone-tools {
+    gap: 4px;
+  }
+
+  .mini-action {
+    font-size: 0.68rem;
+    min-height: 30px;
+    padding: 0.2rem 0.42rem;
+  }
+
+  .card-grid {
+    gap: 6px;
+    grid-template-columns: repeat(auto-fill, minmax(58px, 1fr));
+    max-height: 260px;
+    padding: 7px;
+  }
+
+  .prize-grid {
+    grid-template-columns: repeat(2, minmax(48px, 1fr));
+    max-height: 265px;
+  }
+
+  .zone-discard .card-grid,
+  .zone-lostZone .card-grid {
+    grid-template-columns: minmax(58px, 82px);
+  }
+
+  .card-tile span {
+    font-size: 0.62rem;
+  }
+
+  .deck-stack-wrap {
+    min-height: 120px;
+    padding: 10px 6px;
+  }
+
+  .deck-stack {
+    height: 108px;
+    width: 88px;
+  }
+
+  .deck-stack-card {
+    width: 68px;
+  }
+
+  .deck-stack-card:nth-child(2) {
+    left: 9px;
+    top: 7px;
+  }
+
+  .deck-stack-card:nth-child(3) {
+    left: 18px;
+    top: 14px;
+  }
+
+  .modal-backdrop {
+    align-items: stretch;
+    padding: 8px;
+  }
+
+  .move-modal {
+    align-self: center;
+    gap: 12px;
+    grid-template-columns: minmax(120px, 42vw) minmax(0, 1fr);
+    max-height: 92vh;
+    overflow: auto;
+    padding: 10px;
+    width: 100%;
+  }
+
+  .move-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .deck-peek-backdrop {
+    padding: 12px 8px;
+  }
+
+  .deck-peek-modal {
+    max-width: 100%;
+    min-height: 86vh;
+    width: 100%;
+  }
+
+  .deck-peek-modal header {
+    padding: 12px;
+  }
+
+  .deck-peek-grid {
+    grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+    max-height: calc(86vh - 62px);
+    padding: 10px;
+  }
+}
+
+@media (max-width: 520px) {
+  .online-topbar {
+    flex-direction: column;
+  }
+
+  .status-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .board-layout {
+    grid-template-areas:
+      "active active"
+      "bench bench"
+      "hand hand"
+      "prizes deck"
+      "stadium stadium"
+      "discard lost";
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .zone-tools {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .zone header span {
+    min-width: 1.75rem;
+  }
+
+  .move-modal {
+    grid-template-columns: 1fr;
+  }
+
+  .move-modal > img {
+    justify-self: center;
+    max-width: 230px;
+  }
+
+  .move-grid {
     grid-template-columns: 1fr;
   }
 }
