@@ -135,6 +135,41 @@ function emptyRoom(roomId: string): PublicRoomState {
   };
 }
 
+function normalizePublicPlayer(value?: Partial<PublicPlayerState> | null): PublicPlayerState {
+  const fallback = emptyPublicPlayer();
+  return {
+    ...fallback,
+    ...value,
+    active: Array.isArray(value?.active) ? value.active : [],
+    bench: Array.isArray(value?.bench) ? value.bench : [],
+    discard: Array.isArray(value?.discard) ? value.discard : [],
+    lostZone: Array.isArray(value?.lostZone) ? value.lostZone : [],
+    stadium: Array.isArray(value?.stadium) ? value.stadium : [],
+    attachedCards: value?.attachedCards || {},
+    deckCount: Number(value?.deckCount || 0),
+    handCount: Number(value?.handCount || 0),
+    prizeCount: Number(value?.prizeCount || 0),
+    status: {
+      ...fallback.status,
+      ...(value?.status || {}),
+    },
+  };
+}
+
+function normalizePublicRoom(value: Partial<PublicRoomState> | null | undefined, roomId: string): PublicRoomState | null {
+  if (!value) return null;
+  return {
+    roomId: value.roomId || roomId,
+    players: value.players || {},
+    turnPlayer: value.turnPlayer === "B" ? "B" : "A",
+    updatedAt: Number(value.updatedAt || Date.now()),
+    playerStates: {
+      A: normalizePublicPlayer(value.playerStates?.A),
+      B: normalizePublicPlayer(value.playerStates?.B),
+    },
+  };
+}
+
 function OnlineBattleApp() {
   const [roomId, setRoomId] = useState("");
   const [joinRoomId, setJoinRoomId] = useState("");
@@ -150,8 +185,8 @@ function OnlineBattleApp() {
 
   const firebase = useMemo(() => createFirebaseClient(), []);
   const opponentId: PlayerId = playerId === "A" ? "B" : "A";
-  const myPublic = publicRoom?.playerStates[playerId] || emptyPublicPlayer();
-  const opponentPublic = publicRoom?.playerStates[opponentId] || emptyPublicPlayer();
+  const myPublic = publicRoom?.playerStates?.[playerId] || emptyPublicPlayer();
+  const opponentPublic = publicRoom?.playerStates?.[opponentId] || emptyPublicPlayer();
 
   useEffect(() => {
     if (!connected || !roomId) return;
@@ -753,11 +788,11 @@ function createFirebaseClient() {
 async function loadPublicRoom(roomId: string, firebase: ReturnType<typeof createFirebaseClient>) {
   if (!firebase.enabled || !firebase.databaseURL) {
     const saved = localStorage.getItem(`${LOCAL_PUBLIC_PREFIX}:${roomId}`);
-    return saved ? (JSON.parse(saved) as PublicRoomState) : null;
+    return saved ? normalizePublicRoom(JSON.parse(saved) as Partial<PublicRoomState>, roomId) : null;
   }
   const response = await fetch(`${firebase.databaseURL}/rooms/${encodeURIComponent(roomId)}/publicState.json`);
   if (!response.ok) return null;
-  return (await response.json()) as PublicRoomState | null;
+  return normalizePublicRoom((await response.json()) as Partial<PublicRoomState> | null, roomId);
 }
 
 async function savePublicRoom(room: PublicRoomState, firebase: ReturnType<typeof createFirebaseClient>) {
