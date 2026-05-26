@@ -614,7 +614,14 @@ function OnlineBattleApp() {
       )}
 
       {deckPeekOpen && (
-        <DeckPeekModal cards={privateState.deck} onClose={() => setDeckPeekOpen(false)} />
+        <DeckPeekModal
+          cards={privateState.deck}
+          onClose={() => setDeckPeekOpen(false)}
+          onSelect={(card) => {
+            setDeckPeekOpen(false);
+            setSelected({ card, zone: "deck", owner: playerId, privateCard: true });
+          }}
+        />
       )}
 
       {selected && (
@@ -838,7 +845,15 @@ function CardButton({
   );
 }
 
-function DeckPeekModal({ cards, onClose }: { cards: CardInstance[]; onClose: () => void }) {
+function DeckPeekModal({
+  cards,
+  onClose,
+  onSelect,
+}: {
+  cards: CardInstance[];
+  onClose: () => void;
+  onSelect: (card: CardInstance) => void;
+}) {
   return (
     <div className="modal-backdrop deck-peek-backdrop" onClick={onClose} role="presentation">
       <dialog className="deck-peek-modal" open onClick={(event) => event.stopPropagation()}>
@@ -848,7 +863,7 @@ function DeckPeekModal({ cards, onClose }: { cards: CardInstance[]; onClose: () 
         </header>
         <div className="deck-peek-grid">
           {cards.map((card) => (
-            <CardButton key={card.uid} card={card} faceDown={false} onClick={() => undefined} />
+            <CardButton key={card.uid} card={card} faceDown={false} onClick={() => onSelect(card)} />
           ))}
         </div>
       </dialog>
