@@ -30,6 +30,7 @@ type PlayerId = "A" | "B";
 type PrivateZone = "deck" | "hand" | "prizes";
 type PublicZone = "active" | "bench" | "discard" | "lostZone" | "stadium";
 type AnyZone = PrivateZone | PublicZone;
+type CoinResult = "heads" | "tails";
 
 type PublicCard = Pick<CardInstance, "uid" | "id" | "name" | "imageUrl" | "category">;
 
@@ -62,6 +63,11 @@ type PublicRoomState = {
   roomId: string;
   players: Partial<Record<PlayerId, { name: string; seatedAt: number }>>;
   turnPlayer: PlayerId;
+  coinFlip?: {
+    result: CoinResult;
+    flippedBy: PlayerId;
+    flippedAt: number;
+  };
   updatedAt: number;
   playerStates: Record<PlayerId, PublicPlayerState>;
 };
@@ -74,6 +80,8 @@ type SelectedCard = {
 };
 
 const CARD_BACK_URL = "./card-back.svg";
+const COIN_IMAGE_URL =
+  "https://www.pokemoncenter-online.com/a/img/item/4521329404073/L/e9edcb343f3d56f0fc68321cc06fd7e29dd9b313905ed1a92a1f7de42f53f478.jpg";
 const PRIVATE_STORAGE_PREFIX = "pokewan-online-private";
 const LOCAL_PUBLIC_PREFIX = "pokewan-online-public";
 const POLL_MS = 1400;
@@ -162,6 +170,7 @@ function normalizePublicRoom(value: Partial<PublicRoomState> | null | undefined,
     roomId: value.roomId || roomId,
     players: value.players || {},
     turnPlayer: value.turnPlayer === "B" ? "B" : "A",
+    coinFlip: value.coinFlip,
     updatedAt: Number(value.updatedAt || Date.now()),
     playerStates: {
       A: normalizePublicPlayer(value.playerStates?.A),
@@ -188,7 +197,6 @@ function OnlineBattleApp() {
   const firebase = useMemo(() => createFirebaseClient(), []);
   const opponentId: PlayerId = playerId === "A" ? "B" : "A";
   const myPublic = publicRoom?.playerStates?.[playerId] || emptyPublicPlayer();
-  const opponentPublic = publicRoom?.playerStates?.[opponentId] || emptyPublicPlayer();
 
   useEffect(() => {
     if (!connected || !roomId) return;
@@ -303,7 +311,7 @@ function OnlineBattleApp() {
           return;
         }
       } catch {
-        // Static hosting fallback: official pages may block browser fetch by CORS.
+        // Official pages may block browser fetch by CORS.
       }
     }
 
@@ -362,6 +370,18 @@ function OnlineBattleApp() {
   function passTurn() {
     if (!publicRoom) return;
     publish({ ...publicRoom, turnPlayer: opponentId });
+  }
+
+  function flipCoin() {
+    if (!publicRoom) return;
+    publish({
+      ...publicRoom,
+      coinFlip: {
+        result: Math.random() < 0.5 ? "heads" : "tails",
+        flippedBy: playerId,
+        flippedAt: Date.now(),
+      },
+    });
   }
 
   function movePrivateCard(card: CardInstance, from: PrivateZone, to: AnyZone) {
@@ -468,6 +488,15 @@ function OnlineBattleApp() {
               <RefreshCw />
               番を渡す
             </button>
+            <button className="coin-button" onClick={flipCoin}>
+              <img src={COIN_IMAGE_URL} alt="コイントス" />
+              コイントス
+            </button>
+            {publicRoom.coinFlip && (
+              <span className="coin-result">
+                {PLAYER_LABELS[publicRoom.coinFlip.flippedBy]}: {publicRoom.coinFlip.result === "heads" ? "オモテ" : "ウラ"}
+              </span>
+            )}
           </section>
 
           <section className="deck-loader">
@@ -524,7 +553,7 @@ function OnlineBattleApp() {
           </section>
 
           <div className="players-grid fixed-seats">
-            {(["B", "A"] as PlayerId[]).map((seat) => {
+            {(["A", "B"] as PlayerId[]).map((seat) => {
               const isMine = seat === playerId;
               return (
                 <PlayerBoard
@@ -610,36 +639,39 @@ function PlayerBoard({
         ))}
       </div>
 
-      <div className="zone-layout">
-        <HiddenZone
-          title="山札"
-          count={publicState.deckCount}
-          cards={isMine && deckPeekOpen && privateState ? privateState.deck : null}
-          playerId={playerId}
-          zone="deck"
-          action={isMine && publicState.deckCount > 0 ? { label: "1枚ドロー", onClick: onDraw } : undefined}
-          onSelect={onSelect}
-        />
-        <HiddenZone
-          title="手札"
-          count={publicState.handCount}
-          cards={isMine && privateState ? privateState.hand : null}
-          playerId={playerId}
-          zone="hand"
-          onSelect={onSelect}
-        />
+      <div className="zone-layout board-layout">
         <HiddenZone
           title="サイド"
           count={publicState.prizeCount}
           cards={null}
           playerId={playerId}
           zone="prizes"
+          className="zone-prizes"
+          onSelect={onSelect}
+        />
+        <PublicZoneView title="スタジアム" zone="stadium" cards={publicState.stadium} owner={playerId} onSelect={onSelect} />
+        <HiddenZone
+          title="山札"
+          count={publicState.deckCount}
+          cards={isMine && deckPeekOpen && privateState ? privateState.deck : null}
+          playerId={playerId}
+          zone="deck"
+          className="zone-deck"
+          action={isMine && publicState.deckCount > 0 ? { label: "1枚ドロー", onClick: onDraw } : undefined}
           onSelect={onSelect}
         />
         <PublicZoneView title="バトル場" zone="active" cards={publicState.active} owner={playerId} onSelect={onSelect} />
         <PublicZoneView title="ベンチ" zone="bench" cards={publicState.bench} owner={playerId} onSelect={onSelect} />
-        <PublicZoneView title="スタジアム" zone="stadium" cards={publicState.stadium} owner={playerId} onSelect={onSelect} />
         <PublicZoneView title="トラッシュ" zone="discard" cards={publicState.discard} owner={playerId} onSelect={onSelect} />
+        <HiddenZone
+          title="手札"
+          count={publicState.handCount}
+          cards={isMine && privateState ? privateState.hand : null}
+          playerId={playerId}
+          zone="hand"
+          className="zone-hand"
+          onSelect={onSelect}
+        />
         <PublicZoneView title="ロスト" zone="lostZone" cards={publicState.lostZone} owner={playerId} onSelect={onSelect} />
       </div>
     </section>
@@ -653,6 +685,7 @@ function HiddenZone({
   playerId,
   zone,
   action,
+  className,
   onSelect,
 }: {
   title: string;
@@ -661,10 +694,11 @@ function HiddenZone({
   playerId: PlayerId;
   zone: PrivateZone;
   action?: { label: string; onClick?: () => void };
+  className?: string;
   onSelect: (selected: SelectedCard) => void;
 }) {
   return (
-    <article className="zone hidden-zone">
+    <article className={`zone hidden-zone ${className || ""}`}>
       <header>
         <h3>
           <Layers />
@@ -756,8 +790,7 @@ function MoveDialog({
   onClose: () => void;
   onMove: (zone: AnyZone) => void;
 }) {
-  const isPrivate = selected.privateCard;
-  const imageUrl = isPrivate ? (selected.card as CardInstance).imageUrl : (selected.card as PublicCard).imageUrl;
+  const imageUrl = selected.privateCard ? (selected.card as CardInstance).imageUrl : (selected.card as PublicCard).imageUrl;
   const name = selected.card.name;
   const destinations: AnyZone[] = ["hand", "deck", "prizes", "active", "bench", "discard", "lostZone", "stadium"];
 
@@ -766,7 +799,7 @@ function MoveDialog({
       <dialog className="move-modal" open onClick={(event) => event.stopPropagation()}>
         <img src={imageUrl} alt={name} />
         <div className="modal-actions">
-          <p>{isPrivate ? PRIVATE_ZONE_LABELS[selected.zone as PrivateZone] : PUBLIC_ZONE_LABELS[selected.zone as PublicZone]}</p>
+          <p>{zoneLabel(selected.zone)}</p>
           <h3>{name}</h3>
           {canMove ? (
             <div className="move-grid">

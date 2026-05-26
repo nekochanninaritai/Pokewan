@@ -158,6 +158,21 @@ label span {
   color: #8a350f;
 }
 
+.coin-button img {
+  border-radius: 999px;
+  height: 28px;
+  object-fit: cover;
+  width: 28px;
+}
+
+.coin-result {
+  background: #17211f;
+  border-radius: 999px;
+  color: #fff;
+  font-weight: 900;
+  padding: 0.42rem 0.7rem;
+}
+
 .deck-loader {
   display: grid;
   gap: 10px;
@@ -221,6 +236,15 @@ label span {
   grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
+.board-layout {
+  grid-template-areas:
+    "prizes stadium stadium stadium deck deck"
+    "prizes active active active deck deck"
+    "bench bench bench bench discard discard"
+    "hand hand hand hand lost lost";
+  grid-template-columns: minmax(120px, 0.85fr) repeat(3, minmax(130px, 1fr)) minmax(120px, 0.85fr) minmax(120px, 0.85fr);
+}
+
 .zone {
   border: 1px solid #dce3df;
   border-radius: 8px;
@@ -276,19 +300,36 @@ label span {
   white-space: nowrap;
 }
 
-.hidden-zone {
-  grid-column: span 2;
+.zone-prizes {
+  grid-area: prizes;
 }
 
-.zone-active,
-.zone-bench,
 .zone-stadium {
-  grid-column: span 2;
+  grid-area: stadium;
 }
 
-.zone-discard,
+.zone-deck {
+  grid-area: deck;
+}
+
+.zone-active {
+  grid-area: active;
+}
+
+.zone-bench {
+  grid-area: bench;
+}
+
+.zone-discard {
+  grid-area: discard;
+}
+
+.zone-hand {
+  grid-area: hand;
+}
+
 .zone-lostZone {
-  grid-column: span 3;
+  grid-area: lost;
 }
 
 .card-grid {
@@ -391,5 +432,16 @@ label span {
 
   .players-grid {
     grid-template-columns: 1fr;
+  }
+
+  .board-layout {
+    grid-template-areas:
+      "prizes deck"
+      "stadium stadium"
+      "active active"
+      "bench bench"
+      "hand hand"
+      "discard lost";
+    grid-template-columns: 1fr 1fr;
   }
 }
