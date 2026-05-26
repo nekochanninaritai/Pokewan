@@ -324,6 +324,10 @@ label span {
   grid-area: discard;
 }
 
+.zone-discard .mini-action {
+  font-size: 0.68rem;
+}
+
 .zone-hand {
   grid-area: hand;
 }
@@ -340,6 +344,60 @@ label span {
   max-height: 360px;
   overflow: auto;
   padding: 8px;
+}
+
+.deck-stack-wrap {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: center;
+  min-height: 150px;
+  padding: 14px 8px;
+}
+
+.deck-stack {
+  height: 130px;
+  position: relative;
+  width: 108px;
+}
+
+.deck-stack-card {
+  aspect-ratio: 63 / 88;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.24);
+  object-fit: cover;
+  position: absolute;
+  width: 82px;
+}
+
+.deck-stack-card:nth-child(1) {
+  left: 0;
+  top: 0;
+  transform: rotate(-4deg);
+}
+
+.deck-stack-card:nth-child(2) {
+  left: 12px;
+  top: 9px;
+  transform: rotate(1deg);
+}
+
+.deck-stack-card:nth-child(3) {
+  left: 24px;
+  top: 18px;
+  transform: rotate(5deg);
+}
+
+.deck-stack-count,
+.empty-list {
+  color: #40504c;
+  font-weight: 900;
+  margin: 0;
+}
+
+.modal-empty {
+  padding: 20px;
 }
 
 .card-tile {

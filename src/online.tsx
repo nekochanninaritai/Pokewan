@@ -106,6 +106,14 @@ const PLAYER_LABELS: Record<PlayerId, string> = {
   B: "プレイヤーB",
 };
 
+const STATUS_LABELS: Record<keyof PublicPlayerState["status"], string> = {
+  poison: "どく",
+  burn: "やけど",
+  sleep: "ねむり",
+  paralysis: "マヒ",
+  confusion: "こんらん",
+};
+
 const emptyPrivate = (): PrivatePlayerState => ({
   deck: [],
   hand: [],
@@ -195,17 +203,18 @@ function OnlineBattleApp() {
   const [deckLoading, setDeckLoading] = useState(false);
   const [selected, setSelected] = useState<SelectedCard | null>(null);
   const [deckPeekOpen, setDeckPeekOpen] = useState(false);
+  const [trashViewer, setTrashViewer] = useState<PlayerId | null>(null);
   const [message, setMessage] = useState("ルームを作成、またはルームIDで参加してください。");
 
   const firebase = useMemo(() => createFirebaseClient(), []);
   const opponentId: PlayerId = playerId === "A" ? "B" : "A";
-  const myPublic = publicRoom?.playerStates?.[playerId] || emptyPublicPlayer();
+  const myPublic = publicRoom?.playerStates[playerId] || emptyPublicPlayer();
 
   useEffect(() => {
     if (!connected || !roomId) return;
-    const saved = localStorage.getItem(privateStorageKey(roomId, playerId));
-    setPrivateState(saved ? JSON.parse(saved) : emptyPrivate());
+    setPrivateState(loadPrivate(roomId, playerId));
     setDeckPeekOpen(false);
+    setTrashViewer(null);
   }, [connected, playerId, roomId]);
 
   useEffect(() => {
@@ -314,7 +323,7 @@ function OnlineBattleApp() {
           return;
         }
       } catch {
-        // Official pages may block browser fetch by CORS.
+        // 公式ページはブラウザからの直接取得がCORSで止まることがあります。
       }
     }
 
@@ -427,7 +436,7 @@ function OnlineBattleApp() {
       };
     });
     if (isPrivateZone(to)) {
-      updatePrivate({ ...privateState, [to]: [card as CardInstance, ...privateState[to]] });
+      updatePrivate({ ...privateState, [to]: [publicToPrivate(card), ...privateState[to]] });
     }
   }
 
@@ -500,7 +509,7 @@ function OnlineBattleApp() {
           <button onClick={() => joinRoom("B")}>Bで入る</button>
         </div>
         <p className="message">
-          {message} {firebase.enabled ? "Firebase同期: 有効" : "Firebase同期: 未設定。設定するまで同一ブラウザ内の確認用です。"}
+          {message} {firebase.enabled ? "Firebase同期: 有効" : "Firebase同期: 未設定。設定するまでは同じブラウザ内の確認用です。"}
         </p>
         {connected && (
           <div className="room-id">
@@ -552,7 +561,11 @@ function OnlineBattleApp() {
                   コードから読み込み
                 </button>
               </div>
-              <textarea value={deckHtml} onChange={(event) => setDeckHtml(event.target.value)} placeholder="直接読み込みできない場合は、公式デッキ表示ページのHTMLを貼り付け" />
+              <textarea
+                value={deckHtml}
+                onChange={(event) => setDeckHtml(event.target.value)}
+                placeholder="直接読み込みできない場合は、公式デッキ表示ページのHTMLを貼り付け"
+              />
             </div>
             <button onClick={loadDeckFromHtml} disabled={deckLoading}>
               <ArrowDownToLine />
@@ -605,6 +618,7 @@ function OnlineBattleApp() {
                   viewerId={playerId}
                   onDraw={isMine ? () => draw(1) : undefined}
                   onSelect={setSelected}
+                  onOpenTrash={setTrashViewer}
                   onToggleStatus={isMine ? toggleStatus : undefined}
                 />
               );
@@ -614,12 +628,26 @@ function OnlineBattleApp() {
       )}
 
       {deckPeekOpen && (
-        <DeckPeekModal
+        <CardListModal
+          title={`山札 (${privateState.deck.length}枚)`}
           cards={privateState.deck}
           onClose={() => setDeckPeekOpen(false)}
           onSelect={(card) => {
             setDeckPeekOpen(false);
             setSelected({ card, zone: "deck", owner: playerId, privateCard: true });
+          }}
+        />
+      )}
+
+      {trashViewer && publicRoom && (
+        <CardListModal
+          title={`${PLAYER_LABELS[trashViewer]}のトラッシュ (${publicRoom.playerStates[trashViewer].discard.length}枚)`}
+          cards={publicRoom.playerStates[trashViewer].discard}
+          emptyText="トラッシュにカードはありません。"
+          onClose={() => setTrashViewer(null)}
+          onSelect={(card) => {
+            setTrashViewer(null);
+            setSelected({ card, zone: "discard", owner: trashViewer, privateCard: false });
           }}
         />
       )}
@@ -646,6 +674,7 @@ function PlayerBoard({
   viewerId,
   onDraw,
   onSelect,
+  onOpenTrash,
   onToggleStatus,
 }: {
   title: string;
@@ -655,6 +684,7 @@ function PlayerBoard({
   viewerId: PlayerId;
   onDraw?: () => void;
   onSelect: (selected: SelectedCard) => void;
+  onOpenTrash: (playerId: PlayerId) => void;
   onToggleStatus?: (key: keyof PublicPlayerState["status"]) => void;
 }) {
   const isMine = playerId === viewerId;
@@ -671,13 +701,7 @@ function PlayerBoard({
       </header>
 
       <div className="status-row">
-        {Object.entries({
-          poison: "どく",
-          burn: "やけど",
-          sleep: "ねむり",
-          paralysis: "マヒ",
-          confusion: "こんらん",
-        } satisfies Record<keyof PublicPlayerState["status"], string>).map(([key, label]) => (
+        {Object.entries(STATUS_LABELS).map(([key, label]) => (
           <button
             key={key}
             className={publicState.status[key as keyof PublicPlayerState["status"]] ? "status active" : "status"}
@@ -712,7 +736,16 @@ function PlayerBoard({
         />
         <PublicZoneView title="バトル場" zone="active" cards={publicState.active} owner={playerId} damageCounters={publicState.damageCounters} onSelect={onSelect} />
         <PublicZoneView title="ベンチ" zone="bench" cards={publicState.bench} owner={playerId} damageCounters={publicState.damageCounters} onSelect={onSelect} />
-        <PublicZoneView title="トラッシュ" zone="discard" cards={publicState.discard} owner={playerId} damageCounters={publicState.damageCounters} onSelect={onSelect} />
+        <PublicZoneView
+          title="トラッシュ"
+          zone="discard"
+          cards={publicState.discard}
+          owner={playerId}
+          damageCounters={publicState.damageCounters}
+          compactLatest
+          onOpenList={() => onOpenTrash(playerId)}
+          onSelect={onSelect}
+        />
         <HiddenZone
           title="手札"
           count={publicState.handCount}
@@ -763,24 +796,47 @@ function HiddenZone({
           <span>{count}</span>
         </div>
       </header>
-      <div className="card-grid">
-        {cards
-          ? cards.map((card) => (
-              <CardButton
-                key={card.uid}
-                card={card}
-                faceDown={false}
-                onClick={() => onSelect({ card, zone, owner: playerId, privateCard: true })}
-              />
-            ))
-          : Array.from({ length: Math.min(count, 12) }, (_, index) => (
-              <button className="card-tile is-face-down" key={`${title}-${index}`} aria-label={`${title}の裏向きカード`}>
-                <img src={CARD_BACK_URL} alt="裏向きカード" />
-                <span>裏向き</span>
-              </button>
-            ))}
-      </div>
+      {cards ? (
+        <div className="card-grid">
+          {cards.map((card) => (
+            <CardButton
+              key={card.uid}
+              card={card}
+              faceDown={false}
+              onClick={() => onSelect({ card, zone, owner: playerId, privateCard: true })}
+            />
+          ))}
+        </div>
+      ) : zone === "deck" ? (
+        <DeckStack count={count} />
+      ) : (
+        <div className="card-grid">
+          {Array.from({ length: Math.min(count, 12) }, (_, index) => (
+            <button className="card-tile is-face-down" key={`${title}-${index}`} aria-label={`${title}の裏向きカード`}>
+              <img src={CARD_BACK_URL} alt="裏向きカード" />
+              <span>裏向き</span>
+            </button>
+          ))}
+        </div>
+      )}
     </article>
+  );
+}
+
+function DeckStack({ count }: { count: number }) {
+  return (
+    <div className="deck-stack-wrap" aria-label={`山札 ${count}枚`}>
+      {count > 0 ? (
+        <div className="deck-stack" aria-hidden="true">
+          <img className="deck-stack-card" src={CARD_BACK_URL} alt="" />
+          <img className="deck-stack-card" src={CARD_BACK_URL} alt="" />
+          <img className="deck-stack-card" src={CARD_BACK_URL} alt="" />
+        </div>
+      ) : (
+        <p className="empty-list">山札なし</p>
+      )}
+      <p className="deck-stack-count">{count}枚</p>
+    </div>
   );
 }
 
@@ -790,6 +846,8 @@ function PublicZoneView({
   cards,
   owner,
   damageCounters,
+  compactLatest = false,
+  onOpenList,
   onSelect,
 }: {
   title: string;
@@ -797,8 +855,11 @@ function PublicZoneView({
   cards: PublicCard[];
   owner: PlayerId;
   damageCounters: Record<string, number>;
+  compactLatest?: boolean;
+  onOpenList?: () => void;
   onSelect: (selected: SelectedCard) => void;
 }) {
+  const visibleCards = compactLatest ? cards.slice(0, 1) : cards;
   return (
     <article className={`zone public-zone zone-${zone}`}>
       <header>
@@ -806,10 +867,17 @@ function PublicZoneView({
           {zone === "active" ? <Swords /> : zone === "discard" ? <Trash2 /> : <Layers />}
           {title}
         </h3>
-        <span>{cards.length}</span>
+        <div className="zone-tools">
+          {onOpenList && (
+            <button className="mini-action" onClick={onOpenList}>
+              トラッシュを確認
+            </button>
+          )}
+          <span>{cards.length}</span>
+        </div>
       </header>
       <div className="card-grid">
-        {cards.map((card) => (
+        {visibleCards.map((card) => (
           <CardButton
             key={card.uid}
             card={card}
@@ -818,6 +886,7 @@ function PublicZoneView({
             onClick={() => onSelect({ card, zone, owner, privateCard: false })}
           />
         ))}
+        {compactLatest && cards.length === 0 && <p className="empty-list">なし</p>}
       </div>
     </article>
   );
@@ -845,27 +914,35 @@ function CardButton({
   );
 }
 
-function DeckPeekModal({
+function CardListModal({
+  title,
   cards,
+  emptyText = "カードはありません。",
   onClose,
   onSelect,
 }: {
-  cards: CardInstance[];
+  title: string;
+  cards: Array<CardInstance | PublicCard>;
+  emptyText?: string;
   onClose: () => void;
-  onSelect: (card: CardInstance) => void;
+  onSelect: (card: CardInstance | PublicCard) => void;
 }) {
   return (
     <div className="modal-backdrop deck-peek-backdrop" onClick={onClose} role="presentation">
       <dialog className="deck-peek-modal" open onClick={(event) => event.stopPropagation()}>
         <header>
-          <h2>山札 ({cards.length}枚)</h2>
+          <h2>{title}</h2>
           <button className="close-button" onClick={onClose} aria-label="閉じる">×</button>
         </header>
-        <div className="deck-peek-grid">
-          {cards.map((card) => (
-            <CardButton key={card.uid} card={card} faceDown={false} onClick={() => onSelect(card)} />
-          ))}
-        </div>
+        {cards.length ? (
+          <div className="deck-peek-grid">
+            {cards.map((card) => (
+              <CardButton key={card.uid} card={card} faceDown={false} onClick={() => onSelect(card)} />
+            ))}
+          </div>
+        ) : (
+          <p className="empty-list modal-empty">{emptyText}</p>
+        )}
       </dialog>
     </div>
   );
@@ -886,7 +963,7 @@ function MoveDialog({
   onClose: () => void;
   onMove: (zone: AnyZone) => void;
 }) {
-  const imageUrl = selected.privateCard ? (selected.card as CardInstance).imageUrl : (selected.card as PublicCard).imageUrl;
+  const imageUrl = selected.card.imageUrl;
   const name = selected.card.name;
   const destinations: AnyZone[] = ["hand", "deck", "prizes", "active", "bench", "discard", "lostZone", "stadium"];
   const canEditDamage = canMove && !selected.privateCard && (selected.zone === "active" || selected.zone === "bench");
@@ -949,6 +1026,13 @@ function toPublicCard(card: CardInstance): PublicCard {
     name: card.name,
     imageUrl: card.imageUrl,
     category: card.category,
+  };
+}
+
+function publicToPrivate(card: PublicCard): CardInstance {
+  return {
+    ...card,
+    originalCount: 1,
   };
 }
 
