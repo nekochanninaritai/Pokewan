@@ -47,6 +47,7 @@ type PublicPlayerState = {
   lostZone: PublicCard[];
   stadium: PublicCard[];
   attachedCards: Record<string, PublicCard[]>;
+  damageCounters: Record<string, number>;
   deckCount: number;
   handCount: number;
   prizeCount: number;
@@ -118,6 +119,7 @@ const emptyPublicPlayer = (): PublicPlayerState => ({
   lostZone: [],
   stadium: [],
   attachedCards: {},
+  damageCounters: {},
   deckCount: 0,
   handCount: 0,
   prizeCount: 0,
@@ -154,6 +156,7 @@ function normalizePublicPlayer(value?: Partial<PublicPlayerState> | null): Publi
     lostZone: Array.isArray(value?.lostZone) ? value.lostZone : [],
     stadium: Array.isArray(value?.stadium) ? value.stadium : [],
     attachedCards: value?.attachedCards || {},
+    damageCounters: value?.damageCounters || {},
     deckCount: Number(value?.deckCount || 0),
     handCount: Number(value?.handCount || 0),
     prizeCount: Number(value?.prizeCount || 0),
@@ -345,6 +348,16 @@ function OnlineBattleApp() {
     });
   }
 
+  function returnHandToDeck() {
+    if (!privateState.hand.length) return;
+    updatePrivate({
+      ...privateState,
+      deck: shuffleCards([...privateState.deck, ...privateState.hand]),
+      hand: [],
+    });
+    setDeckPeekOpen(false);
+  }
+
   function setupOpeningHand() {
     const source = shuffleCards([...privateState.deck, ...privateState.hand]);
     updatePrivate({
@@ -401,11 +414,18 @@ function OnlineBattleApp() {
   }
 
   function movePublicCard(card: PublicCard, from: PublicZone, to: AnyZone) {
-    updateMyPublic((current) => ({
-      ...current,
-      [from]: current[from].filter((item) => item.uid !== card.uid),
-      ...(isPrivateZone(to) ? {} : { [to]: [card, ...current[to]] }),
-    }));
+    updateMyPublic((current) => {
+      const nextDamage = { ...current.damageCounters };
+      if (to === "discard" || to === "lostZone" || to === "stadium" || isPrivateZone(to)) {
+        delete nextDamage[card.uid];
+      }
+      return {
+        ...current,
+        damageCounters: nextDamage,
+        [from]: current[from].filter((item) => item.uid !== card.uid),
+        ...(isPrivateZone(to) ? {} : { [to]: [card, ...current[to]] }),
+      };
+    });
     if (isPrivateZone(to)) {
       updatePrivate({ ...privateState, [to]: [card as CardInstance, ...privateState[to]] });
     }
@@ -419,6 +439,22 @@ function OnlineBattleApp() {
       movePublicCard(selected.card as PublicCard, selected.zone as PublicZone, to);
     }
     setSelected(null);
+  }
+
+  function adjustSelectedDamage(delta: number) {
+    if (!selected || selected.owner !== playerId || selected.privateCard) return;
+    const card = selected.card as PublicCard;
+    updateMyPublic((current) => {
+      const currentDamage = current.damageCounters[card.uid] || 0;
+      const nextValue = Math.max(0, currentDamage + delta);
+      const damageCounters = { ...current.damageCounters };
+      if (nextValue === 0) {
+        delete damageCounters[card.uid];
+      } else {
+        damageCounters[card.uid] = nextValue;
+      }
+      return { ...current, damageCounters };
+    });
   }
 
   function toggleStatus(key: keyof PublicPlayerState["status"]) {
@@ -530,6 +566,10 @@ function OnlineBattleApp() {
               <ArrowDownToLine />
               1枚ドロー
             </button>
+            <button onClick={returnHandToDeck} disabled={!privateState.hand.length}>
+              <Hand />
+              手札を山札へ
+            </button>
             <button onClick={setupOpeningHand} disabled={privateState.deck.length + privateState.hand.length < 7}>
               <Hand />
               初手7枚
@@ -542,9 +582,9 @@ function OnlineBattleApp() {
               <Shuffle />
               山札シャッフル
             </button>
-            <button onClick={() => setDeckPeekOpen((open) => !open)} disabled={!privateState.deck.length}>
+            <button onClick={() => setDeckPeekOpen(true)} disabled={!privateState.deck.length}>
               <Eye />
-              {deckPeekOpen ? "山札確認を閉じる" : "自分だけ山札確認"}
+              自分だけ山札確認
             </button>
             <button onClick={resetLocalPrivate}>
               <RotateCcw />
@@ -563,7 +603,6 @@ function OnlineBattleApp() {
                   privateState={isMine ? privateState : null}
                   playerId={seat}
                   viewerId={playerId}
-                  deckPeekOpen={isMine ? deckPeekOpen : false}
                   onDraw={isMine ? () => draw(1) : undefined}
                   onSelect={setSelected}
                   onToggleStatus={isMine ? toggleStatus : undefined}
@@ -574,10 +613,16 @@ function OnlineBattleApp() {
         </>
       )}
 
+      {deckPeekOpen && (
+        <DeckPeekModal cards={privateState.deck} onClose={() => setDeckPeekOpen(false)} />
+      )}
+
       {selected && (
         <MoveDialog
           selected={selected}
           canMove={selected.owner === playerId}
+          damage={selected.privateCard ? 0 : myPublic.damageCounters[(selected.card as PublicCard).uid] || 0}
+          onAdjustDamage={adjustSelectedDamage}
           onClose={() => setSelected(null)}
           onMove={moveSelected}
         />
@@ -592,7 +637,6 @@ function PlayerBoard({
   privateState,
   playerId,
   viewerId,
-  deckPeekOpen,
   onDraw,
   onSelect,
   onToggleStatus,
@@ -602,7 +646,6 @@ function PlayerBoard({
   privateState: PrivatePlayerState | null;
   playerId: PlayerId;
   viewerId: PlayerId;
-  deckPeekOpen: boolean;
   onDraw?: () => void;
   onSelect: (selected: SelectedCard) => void;
   onToggleStatus?: (key: keyof PublicPlayerState["status"]) => void;
@@ -649,20 +692,20 @@ function PlayerBoard({
           className="zone-prizes"
           onSelect={onSelect}
         />
-        <PublicZoneView title="スタジアム" zone="stadium" cards={publicState.stadium} owner={playerId} onSelect={onSelect} />
+        <PublicZoneView title="スタジアム" zone="stadium" cards={publicState.stadium} owner={playerId} damageCounters={publicState.damageCounters} onSelect={onSelect} />
         <HiddenZone
           title="山札"
           count={publicState.deckCount}
-          cards={isMine && deckPeekOpen && privateState ? privateState.deck : null}
+          cards={null}
           playerId={playerId}
           zone="deck"
           className="zone-deck"
           action={isMine && publicState.deckCount > 0 ? { label: "1枚ドロー", onClick: onDraw } : undefined}
           onSelect={onSelect}
         />
-        <PublicZoneView title="バトル場" zone="active" cards={publicState.active} owner={playerId} onSelect={onSelect} />
-        <PublicZoneView title="ベンチ" zone="bench" cards={publicState.bench} owner={playerId} onSelect={onSelect} />
-        <PublicZoneView title="トラッシュ" zone="discard" cards={publicState.discard} owner={playerId} onSelect={onSelect} />
+        <PublicZoneView title="バトル場" zone="active" cards={publicState.active} owner={playerId} damageCounters={publicState.damageCounters} onSelect={onSelect} />
+        <PublicZoneView title="ベンチ" zone="bench" cards={publicState.bench} owner={playerId} damageCounters={publicState.damageCounters} onSelect={onSelect} />
+        <PublicZoneView title="トラッシュ" zone="discard" cards={publicState.discard} owner={playerId} damageCounters={publicState.damageCounters} onSelect={onSelect} />
         <HiddenZone
           title="手札"
           count={publicState.handCount}
@@ -672,7 +715,7 @@ function PlayerBoard({
           className="zone-hand"
           onSelect={onSelect}
         />
-        <PublicZoneView title="ロスト" zone="lostZone" cards={publicState.lostZone} owner={playerId} onSelect={onSelect} />
+        <PublicZoneView title="ロスト" zone="lostZone" cards={publicState.lostZone} owner={playerId} damageCounters={publicState.damageCounters} onSelect={onSelect} />
       </div>
     </section>
   );
@@ -739,12 +782,14 @@ function PublicZoneView({
   zone,
   cards,
   owner,
+  damageCounters,
   onSelect,
 }: {
   title: string;
   zone: PublicZone;
   cards: PublicCard[];
   owner: PlayerId;
+  damageCounters: Record<string, number>;
   onSelect: (selected: SelectedCard) => void;
 }) {
   return (
@@ -762,6 +807,7 @@ function PublicZoneView({
             key={card.uid}
             card={card}
             faceDown={false}
+            damage={damageCounters[card.uid] || 0}
             onClick={() => onSelect({ card, zone, owner, privateCard: false })}
           />
         ))}
@@ -770,29 +816,65 @@ function PublicZoneView({
   );
 }
 
-function CardButton({ card, faceDown, onClick }: { card: PublicCard | CardInstance; faceDown: boolean; onClick: () => void }) {
+function CardButton({
+  card,
+  faceDown,
+  damage = 0,
+  onClick,
+}: {
+  card: PublicCard | CardInstance;
+  faceDown: boolean;
+  damage?: number;
+  onClick: () => void;
+}) {
   return (
     <button className={`card-tile ${faceDown ? "is-face-down" : ""}`} onClick={onClick}>
-      <img src={faceDown ? CARD_BACK_URL : card.imageUrl} alt={faceDown ? "裏向きカード" : card.name} loading="lazy" />
+      <span className="card-image-wrap">
+        <img src={faceDown ? CARD_BACK_URL : card.imageUrl} alt={faceDown ? "裏向きカード" : card.name} loading="lazy" />
+        {damage > 0 && <strong className="damage-badge">{damage}</strong>}
+      </span>
       <span>{faceDown ? "裏向き" : card.name}</span>
     </button>
+  );
+}
+
+function DeckPeekModal({ cards, onClose }: { cards: CardInstance[]; onClose: () => void }) {
+  return (
+    <div className="modal-backdrop deck-peek-backdrop" onClick={onClose} role="presentation">
+      <dialog className="deck-peek-modal" open onClick={(event) => event.stopPropagation()}>
+        <header>
+          <h2>山札 ({cards.length}枚)</h2>
+          <button className="close-button" onClick={onClose} aria-label="閉じる">×</button>
+        </header>
+        <div className="deck-peek-grid">
+          {cards.map((card) => (
+            <CardButton key={card.uid} card={card} faceDown={false} onClick={() => undefined} />
+          ))}
+        </div>
+      </dialog>
+    </div>
   );
 }
 
 function MoveDialog({
   selected,
   canMove,
+  damage,
+  onAdjustDamage,
   onClose,
   onMove,
 }: {
   selected: SelectedCard;
   canMove: boolean;
+  damage: number;
+  onAdjustDamage: (delta: number) => void;
   onClose: () => void;
   onMove: (zone: AnyZone) => void;
 }) {
   const imageUrl = selected.privateCard ? (selected.card as CardInstance).imageUrl : (selected.card as PublicCard).imageUrl;
   const name = selected.card.name;
   const destinations: AnyZone[] = ["hand", "deck", "prizes", "active", "bench", "discard", "lostZone", "stadium"];
+  const canEditDamage = canMove && !selected.privateCard && (selected.zone === "active" || selected.zone === "bench");
 
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
@@ -801,6 +883,15 @@ function MoveDialog({
         <div className="modal-actions">
           <p>{zoneLabel(selected.zone)}</p>
           <h3>{name}</h3>
+          {canEditDamage && (
+            <div className="damage-controls">
+              <strong>ダメカン: {damage}</strong>
+              <button onClick={() => onAdjustDamage(-10)}>-10</button>
+              <button onClick={() => onAdjustDamage(10)}>+10</button>
+              <button onClick={() => onAdjustDamage(50)}>+50</button>
+              <button onClick={() => onAdjustDamage(-damage)}>0</button>
+            </div>
+          )}
           {canMove ? (
             <div className="move-grid">
               {destinations.map((zone) => (

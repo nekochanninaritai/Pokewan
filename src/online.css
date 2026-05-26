@@ -365,6 +365,29 @@ label span {
   width: 100%;
 }
 
+.card-image-wrap {
+  display: block;
+  position: relative;
+}
+
+.damage-badge {
+  align-items: center;
+  background: #d92d20;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  bottom: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+  color: #fff;
+  display: inline-flex;
+  font-size: 0.8rem;
+  font-weight: 900;
+  justify-content: center;
+  min-width: 30px;
+  padding: 0.12rem 0.35rem;
+  position: absolute;
+  right: 4px;
+}
+
 .card-tile span {
   color: #263430;
   display: block;
@@ -423,6 +446,80 @@ label span {
   display: grid;
   gap: 8px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.damage-controls {
+  align-items: center;
+  background: #eef3ef;
+  border: 1px solid #dce3df;
+  border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px;
+}
+
+.damage-controls strong {
+  margin-right: auto;
+}
+
+.damage-controls button {
+  min-height: 32px;
+  padding: 0.25rem 0.55rem;
+}
+
+.deck-peek-backdrop {
+  align-items: flex-start;
+  overflow: auto;
+  padding: 48px 16px;
+}
+
+.deck-peek-modal {
+  background: #fff;
+  border: 0;
+  border-radius: 8px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.36);
+  margin: 0;
+  max-width: min(1040px, 92vw);
+  min-height: min(82vh, 980px);
+  padding: 0;
+  width: 1040px;
+}
+
+.deck-peek-modal header {
+  align-items: center;
+  border-bottom: 1px solid #dce3df;
+  display: flex;
+  justify-content: space-between;
+  padding: 18px 20px;
+}
+
+.deck-peek-modal h2 {
+  font-size: 1.25rem;
+  margin-bottom: 0;
+}
+
+.close-button {
+  background: transparent;
+  border: 0;
+  color: #8a96a3;
+  font-size: 2rem;
+  line-height: 1;
+  min-height: 34px;
+  padding: 0 0.4rem;
+}
+
+.deck-peek-grid {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+  max-height: calc(82vh - 76px);
+  overflow: auto;
+  padding: 18px;
+}
+
+.deck-peek-grid .card-tile span {
+  font-size: 0.65rem;
 }
 
 @media (max-width: 1200px) {
