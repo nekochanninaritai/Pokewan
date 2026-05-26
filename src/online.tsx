@@ -14,7 +14,7 @@ import {
   Swords,
   Trash2,
 } from "lucide-react";
-import { expandDeck, parseDeckHtml } from "./deckParser";
+import { deckUrlsFromCode, expandDeck, normalizeDeckCode, parseDeckHtml } from "./deckParser";
 import type { Card, CardInstance } from "./types";
 import "./online.css";
 
@@ -177,8 +177,10 @@ function OnlineBattleApp() {
   const [connected, setConnected] = useState(false);
   const [publicRoom, setPublicRoom] = useState<PublicRoomState | null>(null);
   const [privateState, setPrivateState] = useState<PrivatePlayerState>(emptyPrivate);
+  const [deckCode, setDeckCode] = useState("");
   const [deckHtml, setDeckHtml] = useState("");
-  const [deckSummary, setDeckSummary] = useState("公式デッキページHTMLを貼り付けて読み込んでください。");
+  const [deckSummary, setDeckSummary] = useState("デッキコード、公式URL、または公式ページHTMLから読み込めます。");
+  const [deckLoading, setDeckLoading] = useState(false);
   const [selected, setSelected] = useState<SelectedCard | null>(null);
   const [deckPeekOpen, setDeckPeekOpen] = useState(false);
   const [message, setMessage] = useState("ルームを作成、またはルームIDで参加してください。");
@@ -279,17 +281,51 @@ function OnlineBattleApp() {
     });
   }
 
+  async function loadDeckFromCode() {
+    const code = normalizeDeckCode(deckCode);
+    if (!code) {
+      setDeckSummary("デッキコード、または公式デッキURLを入力してください。");
+      return;
+    }
+
+    setDeckLoading(true);
+    setDeckSummary("公式ページを読み込み中です。CORSで失敗した場合はHTML貼り付けを使ってください。");
+    for (const url of deckUrlsFromCode(code)) {
+      try {
+        const response = await fetch(url, { mode: "cors" });
+        if (!response.ok) continue;
+        const text = await response.text();
+        const parsed = parseDeckHtml(text);
+        if (parsed.length) {
+          setDeckHtml(text);
+          await applyDeckCards(parsed, "デッキコード");
+          setDeckLoading(false);
+          return;
+        }
+      } catch {
+        // Static hosting fallback: official pages may block browser fetch by CORS.
+      }
+    }
+
+    setDeckLoading(false);
+    setDeckSummary("直接読み込みできませんでした。公式デッキ表示ページを開き、ページHTMLを貼り付けてください。");
+  }
+
   function loadDeckFromHtml() {
     const parsed = parseDeckHtml(deckHtml);
-    const total = parsed.reduce((sum, card) => sum + card.count, 0);
     if (!parsed.length) {
       setDeckSummary("カード情報を見つけられませんでした。公式デッキ表示ページ全体のHTMLを貼り付けてください。");
       return;
     }
+    applyDeckCards(parsed, "HTML");
+  }
+
+  async function applyDeckCards(parsed: Card[], source: string) {
+    const total = parsed.reduce((sum, card) => sum + card.count, 0);
     const expanded = shuffleCards(expandDeck(parsed));
-    updatePrivate({ deck: expanded, hand: [], prizes: [] });
+    await updatePrivate({ deck: expanded, hand: [], prizes: [] });
     setDeckPeekOpen(false);
-    setDeckSummary(`${total}枚のデッキを読み込みました。非公開情報はこのブラウザだけに保存されます。`);
+    setDeckSummary(`${source}から${total}枚のデッキを読み込みました。非公開情報はこのブラウザだけに保存されます。`);
   }
 
   function draw(count = 1) {
@@ -437,10 +473,23 @@ function OnlineBattleApp() {
           <section className="deck-loader">
             <div>
               <h2>デッキ読み込み</h2>
-              <p>公式ページHTML貼り付けのみ対応。手札・山札・サイドはFirebaseへ送信しません。</p>
+              <p>手札・山札・サイドはFirebaseへ送信しません。</p>
             </div>
-            <textarea value={deckHtml} onChange={(event) => setDeckHtml(event.target.value)} placeholder="公式デッキ表示ページのHTMLを貼り付け" />
-            <button onClick={loadDeckFromHtml}>
+            <div className="deck-load-fields">
+              <div className="deck-code-row">
+                <input
+                  value={deckCode}
+                  onChange={(event) => setDeckCode(event.target.value)}
+                  placeholder="デッキコード、または公式URL"
+                />
+                <button onClick={loadDeckFromCode} disabled={deckLoading}>
+                  <ArrowDownToLine />
+                  コードから読み込み
+                </button>
+              </div>
+              <textarea value={deckHtml} onChange={(event) => setDeckHtml(event.target.value)} placeholder="直接読み込みできない場合は、公式デッキ表示ページのHTMLを貼り付け" />
+            </div>
+            <button onClick={loadDeckFromHtml} disabled={deckLoading}>
               <ArrowDownToLine />
               HTMLから読み込み
             </button>
