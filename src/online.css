@@ -260,6 +260,22 @@ label span {
   text-align: center;
 }
 
+.zone-tools {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.mini-action {
+  background: #17211f;
+  border-color: #17211f;
+  color: #fff;
+  font-size: 0.72rem;
+  min-height: 28px;
+  padding: 0.2rem 0.5rem;
+  white-space: nowrap;
+}
+
 .hidden-zone {
   grid-column: span 2;
 }

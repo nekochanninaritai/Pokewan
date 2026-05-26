@@ -523,26 +523,24 @@ function OnlineBattleApp() {
             </button>
           </section>
 
-          <div className="players-grid">
-            <PlayerBoard
-              title={`相手: ${PLAYER_LABELS[opponentId]}`}
-              publicState={opponentPublic}
-              privateState={null}
-              playerId={opponentId}
-              viewerId={playerId}
-              deckPeekOpen={false}
-              onSelect={setSelected}
-            />
-            <PlayerBoard
-              title={`自分: ${PLAYER_LABELS[playerId]}`}
-              publicState={myPublic}
-              privateState={privateState}
-              playerId={playerId}
-              viewerId={playerId}
-              deckPeekOpen={deckPeekOpen}
-              onSelect={setSelected}
-              onToggleStatus={toggleStatus}
-            />
+          <div className="players-grid fixed-seats">
+            {(["B", "A"] as PlayerId[]).map((seat) => {
+              const isMine = seat === playerId;
+              return (
+                <PlayerBoard
+                  key={seat}
+                  title={`${PLAYER_LABELS[seat]}${isMine ? "（自分）" : "（相手）"}`}
+                  publicState={isMine ? myPublic : publicRoom.playerStates[seat]}
+                  privateState={isMine ? privateState : null}
+                  playerId={seat}
+                  viewerId={playerId}
+                  deckPeekOpen={isMine ? deckPeekOpen : false}
+                  onDraw={isMine ? () => draw(1) : undefined}
+                  onSelect={setSelected}
+                  onToggleStatus={isMine ? toggleStatus : undefined}
+                />
+              );
+            })}
           </div>
         </>
       )}
@@ -566,6 +564,7 @@ function PlayerBoard({
   playerId,
   viewerId,
   deckPeekOpen,
+  onDraw,
   onSelect,
   onToggleStatus,
 }: {
@@ -575,6 +574,7 @@ function PlayerBoard({
   playerId: PlayerId;
   viewerId: PlayerId;
   deckPeekOpen: boolean;
+  onDraw?: () => void;
   onSelect: (selected: SelectedCard) => void;
   onToggleStatus?: (key: keyof PublicPlayerState["status"]) => void;
 }) {
@@ -617,6 +617,7 @@ function PlayerBoard({
           cards={isMine && deckPeekOpen && privateState ? privateState.deck : null}
           playerId={playerId}
           zone="deck"
+          action={isMine && publicState.deckCount > 0 ? { label: "1枚ドロー", onClick: onDraw } : undefined}
           onSelect={onSelect}
         />
         <HiddenZone
@@ -630,7 +631,7 @@ function PlayerBoard({
         <HiddenZone
           title="サイド"
           count={publicState.prizeCount}
-          cards={isMine && privateState ? privateState.prizes : null}
+          cards={null}
           playerId={playerId}
           zone="prizes"
           onSelect={onSelect}
@@ -651,6 +652,7 @@ function HiddenZone({
   cards,
   playerId,
   zone,
+  action,
   onSelect,
 }: {
   title: string;
@@ -658,6 +660,7 @@ function HiddenZone({
   cards: CardInstance[] | null;
   playerId: PlayerId;
   zone: PrivateZone;
+  action?: { label: string; onClick?: () => void };
   onSelect: (selected: SelectedCard) => void;
 }) {
   return (
@@ -667,7 +670,14 @@ function HiddenZone({
           <Layers />
           {title}
         </h3>
-        <span>{count}</span>
+        <div className="zone-tools">
+          {action?.onClick && (
+            <button className="mini-action" onClick={action.onClick}>
+              {action.label}
+            </button>
+          )}
+          <span>{count}</span>
+        </div>
       </header>
       <div className="card-grid">
         {cards
