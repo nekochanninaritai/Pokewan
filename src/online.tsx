@@ -33,7 +33,13 @@ type AnyZone = PrivateZone | PublicZone;
 type MoveDestination = AnyZone | "activeFaceDown" | "revealActive";
 type CoinResult = "heads" | "tails";
 type ListViewer = { playerId: PlayerId; zone: "discard" | "lostZone" } | null;
-type AttachTarget = { uid: string; name: string };
+type TargetCandidate = {
+  card: PublicCard;
+  zone: "active" | "bench";
+  index: number;
+  label: string;
+  attachedCards: PublicCard[];
+};
 
 type PublicCard = Pick<CardInstance, "uid" | "id" | "name" | "imageUrl" | "category" | "role"> & {
   faceDown?: boolean;
@@ -702,7 +708,7 @@ function OnlineBattleApp() {
             Boolean((selected.card as PublicCard).faceDown && privateState.faceDownPublicCards[(selected.card as PublicCard).uid])
           }
           isMoving={isMoving}
-          attachTargets={selected.sourceCard ? [] : buildAttachTargets(myPublic, selected.card.uid)}
+          targetCandidates={selected.sourceCard ? [] : buildTargetCandidates(myPublic, selected.card.uid)}
           damage={selected.privateCard ? 0 : myPublic.damageCounters[((selected.sourceCard ?? selected.card) as PublicCard).uid] || 0}
           onAdjustDamage={adjustSelectedDamage}
           onAttach={attachSelected}
@@ -1147,7 +1153,7 @@ function MoveDialog({
   canMove,
   canRevealFaceDown,
   isMoving,
-  attachTargets,
+  targetCandidates,
   damage,
   onAdjustDamage,
   onAttach,
@@ -1158,7 +1164,7 @@ function MoveDialog({
   canMove: boolean;
   canRevealFaceDown: boolean;
   isMoving: boolean;
-  attachTargets: AttachTarget[];
+  targetCandidates: TargetCandidate[];
   damage: number;
   onAdjustDamage: (delta: number) => void;
   onAttach: (targetUid: string) => void;
@@ -1169,7 +1175,9 @@ function MoveDialog({
   const name = selected.card.name;
   const destinations: AnyZone[] = ["hand", "deck", "prizes", "active", "bench", "discard", "lostZone", "stadium"];
   const canEditDamage = canMove && !selected.privateCard && (selected.zone === "active" || selected.zone === "bench");
-  const attachLabel = isPokemonCard(selected.card) ? "に進化する" : "につける";
+  const attachAction = isPokemonCard(selected.card) ? "進化" : "付ける";
+  const activeCandidates = targetCandidates.filter((candidate) => candidate.zone === "active");
+  const benchCandidates = targetCandidates.filter((candidate) => candidate.zone === "bench");
 
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
@@ -1189,13 +1197,23 @@ function MoveDialog({
           )}
           {canMove ? (
             <>
-              {attachTargets.length > 0 && (
-                <div className="attach-grid">
-                  {attachTargets.map((target) => (
-                    <button key={target.uid} disabled={isMoving} onClick={() => onAttach(target.uid)}>
-                      {target.name}{attachLabel}
-                    </button>
-                  ))}
+              {targetCandidates.length > 0 && (
+                <div className="target-candidate-list">
+                  <p className="target-candidate-title">このカードをどのポケモンに使いますか？</p>
+                  <TargetCandidateGroup
+                    title="バトル場"
+                    candidates={activeCandidates}
+                    action={attachAction}
+                    isMoving={isMoving}
+                    onAttach={onAttach}
+                  />
+                  <TargetCandidateGroup
+                    title="ベンチ"
+                    candidates={benchCandidates}
+                    action={attachAction}
+                    isMoving={isMoving}
+                    onAttach={onAttach}
+                  />
                 </div>
               )}
               {selected.privateCard && (
@@ -1222,6 +1240,67 @@ function MoveDialog({
           <button onClick={onClose} disabled={isMoving}>閉じる</button>
         </div>
       </dialog>
+    </div>
+  );
+}
+
+function TargetCandidateGroup({
+  title,
+  candidates,
+  action,
+  isMoving,
+  onAttach,
+}: {
+  title: string;
+  candidates: TargetCandidate[];
+  action: "進化" | "付ける";
+  isMoving: boolean;
+  onAttach: (targetUid: string) => void;
+}) {
+  if (!candidates.length) return null;
+
+  return (
+    <div className="target-candidate-group">
+      <h4>{title}</h4>
+      {candidates.map((candidate) => (
+        <button
+          key={candidate.card.uid}
+          className="target-candidate-button"
+          disabled={isMoving}
+          onClick={() => onAttach(candidate.card.uid)}
+        >
+          <img
+            className="target-candidate-thumb"
+            src={candidate.card.faceDown ? CARD_BACK_URL : candidate.card.imageUrl}
+            alt={candidate.card.faceDown ? "裏向きカード" : candidate.card.name}
+            loading="lazy"
+          />
+          <span className="target-candidate-meta">
+            <strong>{candidate.card.faceDown ? "裏向きカード" : candidate.card.name}</strong>
+            <span>
+              <b>{candidate.label}</b>
+              <em>付いているカード {candidate.attachedCards.length}枚</em>
+            </span>
+            <small>個体ID: {shortUid(candidate.card.uid)}</small>
+            {candidate.attachedCards.length > 0 && (
+              <span className="target-candidate-attached">
+                {candidate.attachedCards.map((attached) => (
+                  <img
+                    key={attached.uid}
+                    src={attached.faceDown ? CARD_BACK_URL : attached.imageUrl}
+                    alt={attached.faceDown ? "裏向きカード" : attached.name}
+                    title={attached.faceDown ? "裏向きカード" : attached.name}
+                    loading="lazy"
+                  />
+                ))}
+              </span>
+            )}
+            <span className="target-candidate-action">
+              {candidate.label}の{candidate.card.faceDown ? "裏向きカード" : candidate.card.name}に{action === "進化" ? "進化する" : "付ける"}
+            </span>
+          </span>
+        </button>
+      ))}
     </div>
   );
 }
@@ -1326,10 +1405,30 @@ function addToPublicZone(state: PublicPlayerState, zone: PublicZone, card: Publi
   };
 }
 
-function buildAttachTargets(publicState: PublicPlayerState, selectedUid: string): AttachTarget[] {
-  return [...publicState.active, ...publicState.bench]
+function buildTargetCandidates(publicState: PublicPlayerState, selectedUid: string): TargetCandidate[] {
+  const activeCandidates = publicState.active
     .filter((card) => card.uid !== selectedUid)
-    .map((card) => ({ uid: card.uid, name: card.name }));
+    .map((card) => ({
+      card,
+      zone: "active" as const,
+      index: 0,
+      label: "バトル場",
+      attachedCards: publicState.attachedCards[card.uid] || [],
+    }));
+  const benchCandidates = publicState.bench
+    .filter((card) => card.uid !== selectedUid)
+    .map((card, index) => ({
+      card,
+      zone: "bench" as const,
+      index,
+      label: `ベンチ${index + 1}`,
+      attachedCards: publicState.attachedCards[card.uid] || [],
+    }));
+  return [...activeCandidates, ...benchCandidates];
+}
+
+function shortUid(uid: string) {
+  return uid.replace(/[^a-zA-Z0-9]/g, "").slice(-4) || uid.slice(-4);
 }
 
 function atomicMoveSelectedCard({
