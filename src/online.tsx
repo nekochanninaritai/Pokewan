@@ -60,6 +60,7 @@ type PublicPlayerState = {
   discard: PublicCard[];
   lostZone: PublicCard[];
   stadium: PublicCard[];
+  revealedHand: PublicCard[];
   attachedCards: Record<string, PublicCard[]>;
   damageCounters: Record<string, number>;
   deckCount: number;
@@ -145,6 +146,7 @@ const emptyPublicPlayer = (): PublicPlayerState => ({
   discard: [],
   lostZone: [],
   stadium: [],
+  revealedHand: [],
   attachedCards: {},
   damageCounters: {},
   deckCount: 0,
@@ -182,6 +184,7 @@ function normalizePublicPlayer(value?: Partial<PublicPlayerState> | null): Publi
     discard: Array.isArray(value?.discard) ? value.discard : [],
     lostZone: Array.isArray(value?.lostZone) ? value.lostZone : [],
     stadium: Array.isArray(value?.stadium) ? value.stadium : [],
+    revealedHand: Array.isArray(value?.revealedHand) ? value.revealedHand : [],
     attachedCards: value?.attachedCards || {},
     damageCounters: value?.damageCounters || {},
     deckCount: Number(value?.deckCount || 0),
@@ -321,6 +324,18 @@ function OnlineBattleApp() {
     });
   }
 
+  async function updatePrivateAndHideHand(nextPrivate: PrivatePlayerState, roomOverride = publicRoom) {
+    setPrivateState(nextPrivate);
+    if (!roomOverride) return;
+    await publish({
+      ...roomOverride,
+      playerStates: {
+        ...roomOverride.playerStates,
+        [playerId]: syncCounts({ ...roomOverride.playerStates[playerId], revealedHand: [] }, nextPrivate),
+      },
+    });
+  }
+
   async function loadDeckFromCode() {
     const code = normalizeDeckCode(deckCode);
     if (!code) {
@@ -411,11 +426,19 @@ function OnlineBattleApp() {
 
   function setupOpeningHand() {
     const source = shuffleCards([...privateState.deck, ...privateState.hand]);
-    updatePrivate({
+    updatePrivateAndHideHand({
       ...privateState,
       deck: source.slice(7),
       hand: source.slice(0, 7),
     });
+  }
+
+  function revealHand() {
+    if (!privateState.hand.length) return;
+    updateMyPublic((current) => ({
+      ...current,
+      revealedHand: privateState.hand.map((card) => toPublicCard(card)),
+    }));
   }
 
   function setupPrizes() {
@@ -685,6 +708,10 @@ function OnlineBattleApp() {
                 <Hand />
                 初手7枚
               </button>
+              <button onClick={revealHand} disabled={!privateState.hand.length}>
+                <Eye />
+                手札を開示
+              </button>
               <button onClick={setupPrizes} disabled={privateState.deck.length < 6}>
                 <Sparkles />
                 サイド6枚
@@ -907,10 +934,11 @@ function PlayerBoard({
         <HiddenZone
           title="手札"
           count={publicState.handCount}
-          cards={isMine && privateState ? privateState.hand : null}
+          cards={isMine && privateState ? privateState.hand : publicState.revealedHand.length > 0 ? publicState.revealedHand : null}
           playerId={playerId}
           zone="hand"
           className="zone-hand"
+          cardsPrivate={isMine}
           action={isMine && publicState.handCount > 0 ? { label: "手札を山札へ", onClick: onReturnHandToDeck } : undefined}
           onSelect={onSelect}
         />
@@ -937,16 +965,18 @@ function HiddenZone({
   zone,
   action,
   className,
+  cardsPrivate = true,
   onDeckPeek,
   onSelect,
 }: {
   title: string;
   count: number;
-  cards: CardInstance[] | null;
+  cards: Array<CardInstance | PublicCard> | null;
   playerId: PlayerId;
   zone: PrivateZone;
   action?: { label: string; onClick?: () => void };
   className?: string;
+  cardsPrivate?: boolean;
   onDeckPeek?: () => void;
   onSelect: (selected: SelectedCard) => void;
 }) {
@@ -973,7 +1003,7 @@ function HiddenZone({
               key={card.uid}
               card={card}
               faceDown={false}
-              onClick={() => onSelect({ card, zone, owner: playerId, privateCard: true })}
+              onClick={() => onSelect({ card, zone, owner: playerId, privateCard: cardsPrivate, readOnly: !cardsPrivate })}
             />
           ))}
         </div>
@@ -1407,6 +1437,7 @@ function syncCounts(publicState: PublicPlayerState, privateState: PrivatePlayerS
     deckCount: privateState.deck.length,
     handCount: privateState.hand.length,
     prizeCount: privateState.prizes.length,
+    revealedHand: publicState.revealedHand.length > 0 ? privateState.hand.map((card) => toPublicCard(card)) : [],
   };
 }
 
