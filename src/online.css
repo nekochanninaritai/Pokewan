@@ -569,9 +569,9 @@ label span {
 .tool-overlays {
   pointer-events: none;
   position: absolute;
-  right: -14px;
-  top: 12px;
-  z-index: 4;
+  right: -24px;
+  top: -10px;
+  z-index: 1;
 }
 
 .tool-overlay-card {
@@ -585,12 +585,12 @@ label span {
   min-height: 0;
   padding: 0;
   pointer-events: auto;
-  transform: translate(var(--tool-offset), var(--tool-offset)) rotate(2deg);
-  width: 42%;
+  transform: translate(var(--tool-offset), var(--tool-offset)) rotate(1deg);
+  width: 54%;
 }
 
 .tool-overlay-card + .tool-overlay-card {
-  margin-top: -58%;
+  margin-top: -68%;
 }
 
 .tool-overlay-card img {

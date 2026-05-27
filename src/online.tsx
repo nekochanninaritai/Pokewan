@@ -1048,7 +1048,6 @@ function BattleCardStack({
       </div>
       {evolutionCards.length > 0 && (
         <div className="evolution-history" aria-label={`${card.name}の進化元`}>
-          <span>進化元</span>
           {baseCards.map((baseCard) => (
             <button
               key={baseCard.uid}
