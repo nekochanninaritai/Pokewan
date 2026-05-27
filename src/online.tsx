@@ -360,6 +360,18 @@ function OnlineBattleApp() {
     applyDeckCards(parsed, "HTML");
   }
 
+  async function startBattleSetup() {
+    if (deckCode.trim()) {
+      await loadDeckFromCode();
+      return;
+    }
+    if (deckHtml.trim()) {
+      loadDeckFromHtml();
+      return;
+    }
+    setDeckSummary("デッキコード、公式URL、または公式ページHTMLを入力してください。");
+  }
+
   async function applyDeckCards(parsed: Card[], source: string) {
     const total = parsed.reduce((sum, card) => sum + card.count, 0);
     const expanded = shuffleCards(expandDeck(parsed));
@@ -663,42 +675,55 @@ function OnlineBattleApp() {
           </section>
 
           <section className="quick-controls">
-            <button onClick={() => draw(1)} disabled={!privateState.deck.length}>
-              <ArrowDownToLine />
-              1枚ドロー
-            </button>
-            <button onClick={returnHandToDeck} disabled={!privateState.hand.length}>
-              <Hand />
-              手札を山札へ
-            </button>
-            <button onClick={setupOpeningHand} disabled={privateState.deck.length + privateState.hand.length < 7}>
-              <Hand />
-              初手7枚
-            </button>
-            <button onClick={setupPrizes} disabled={privateState.deck.length < 6}>
-              <Sparkles />
-              サイド6枚
-            </button>
-            <button onClick={shuffleDeck} disabled={!privateState.deck.length}>
-              <Shuffle />
-              山札シャッフル
-            </button>
-            <button onClick={() => setDeckPeekOpen(true)} disabled={!privateState.deck.length}>
-              <Eye />
-              自分だけ山札確認
-            </button>
-            <button onClick={revealBenchFaceDownCards} disabled={!hasRevealableBench || isMoving}>
-              <Eye />
-              ベンチを表面にする
-            </button>
-            <button onClick={resetLocalPrivate}>
-              <RotateCcw />
-              自分の非公開情報リセット
-            </button>
-            <button onClick={resetRoomState} disabled={!publicRoom}>
-              <RotateCcw />
-              リセット
-            </button>
+            <div className="quick-control-group">
+              <span>バトル開始時</span>
+              <button onClick={startBattleSetup} disabled={deckLoading}>
+                <ArrowDownToLine />
+                開始
+              </button>
+              <button onClick={setupOpeningHand} disabled={privateState.deck.length + privateState.hand.length < 7}>
+                <Hand />
+                初手7枚
+              </button>
+              <button onClick={setupPrizes} disabled={privateState.deck.length < 6}>
+                <Sparkles />
+                サイド6枚
+              </button>
+              <button onClick={revealBenchFaceDownCards} disabled={!hasRevealableBench || isMoving}>
+                <Eye />
+                ベンチを表面にする
+              </button>
+            </div>
+            <div className="quick-control-group">
+              <span>バトル中</span>
+              <button onClick={() => draw(1)} disabled={!privateState.deck.length}>
+                <ArrowDownToLine />
+                1枚ドロー
+              </button>
+              <button onClick={returnHandToDeck} disabled={!privateState.hand.length}>
+                <Hand />
+                手札を山札へ
+              </button>
+              <button onClick={shuffleDeck} disabled={!privateState.deck.length}>
+                <Shuffle />
+                山札シャッフル
+              </button>
+              <button onClick={() => setDeckPeekOpen(true)} disabled={!privateState.deck.length}>
+                <Eye />
+                自分だけ山札確認
+              </button>
+            </div>
+            <div className="quick-control-group">
+              <span>そのほか</span>
+              <button onClick={resetRoomState} disabled={!publicRoom}>
+                <RotateCcw />
+                リセット
+              </button>
+              <button onClick={resetLocalPrivate}>
+                <RotateCcw />
+                自分の非公開情報リセット
+              </button>
+            </div>
           </section>
 
           <div className="players-grid fixed-seats">

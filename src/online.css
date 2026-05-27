@@ -116,13 +116,37 @@ h1 {
 }
 
 .room-actions,
-.quick-controls,
 .battle-controls,
 .room-id {
   align-items: end;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.quick-controls {
+  align-items: stretch;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+}
+
+.quick-control-group {
+  align-content: start;
+  background: #f7faf8;
+  border: 1px solid #dce3df;
+  border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+}
+
+.quick-control-group > span {
+  color: #52625e;
+  flex: 0 0 100%;
+  font-size: 0.72rem;
+  font-weight: 900;
 }
 
 .room-actions label {
@@ -955,10 +979,17 @@ label span {
   }
 
   .room-actions,
-  .quick-controls,
   .battle-controls,
   .room-id {
     align-items: stretch;
+    flex-direction: column;
+  }
+
+  .quick-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .quick-control-group {
     flex-direction: column;
   }
 
