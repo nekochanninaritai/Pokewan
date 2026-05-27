@@ -87,6 +87,8 @@ const COIN_IMAGE_URL =
 const PRIVATE_STORAGE_PREFIX = "pokewan-online-private";
 const LOCAL_PUBLIC_PREFIX = "pokewan-online-public";
 const POLL_MS = 1400;
+const PRIVATE_ZONES: PrivateZone[] = ["deck", "hand", "prizes"];
+const PUBLIC_ZONES: PublicZone[] = ["active", "bench", "discard", "lostZone", "stadium"];
 
 const PRIVATE_ZONE_LABELS: Record<PrivateZone, string> = {
   deck: "山札",
@@ -203,6 +205,7 @@ function OnlineBattleApp() {
   const [deckSummary, setDeckSummary] = useState("デッキコード、公式URL、または公式ページHTMLから読み込めます。");
   const [deckLoading, setDeckLoading] = useState(false);
   const [selected, setSelected] = useState<SelectedCard | null>(null);
+  const [isMoving, setIsMoving] = useState(false);
   const [deckPeekOpen, setDeckPeekOpen] = useState(false);
   const [listViewer, setListViewer] = useState<ListViewer>(null);
   const [message, setMessage] = useState("ルームを作成、またはルームIDで参加してください。");
@@ -417,48 +420,32 @@ function OnlineBattleApp() {
     });
   }
 
-  function movePrivateCard(card: CardInstance, from: PrivateZone, to: AnyZone) {
-    const removed = {
-      ...privateState,
-      [from]: privateState[from].filter((item) => item.uid !== card.uid),
-    };
-    if (isPrivateZone(to)) {
-      updatePrivate({ ...removed, [to]: [card, ...removed[to]] });
-      return;
-    }
-    updatePrivate(removed);
-    updateMyPublic((current) => ({
-      ...current,
-      [to]: [toPublicCard(card), ...current[to]],
-    }));
-  }
+  async function moveSelected(to: AnyZone) {
+    if (!selected || selected.owner !== playerId || isMoving) return;
+    if (!publicRoom) return;
 
-  function movePublicCard(card: PublicCard, from: PublicZone, to: AnyZone) {
-    updateMyPublic((current) => {
-      const nextDamage = { ...current.damageCounters };
-      if (to === "discard" || to === "lostZone" || to === "stadium" || isPrivateZone(to)) {
-        delete nextDamage[card.uid];
+    setIsMoving(true);
+    try {
+      const next = atomicMoveSelectedCard({
+        selected,
+        to,
+        privateState,
+        publicRoom,
+        playerId,
+      });
+
+      if (!next) {
+        setMessage("カードの現在位置が変わっています。再選択してください。");
+        setSelected(null);
+        return;
       }
-      return {
-        ...current,
-        damageCounters: nextDamage,
-        [from]: current[from].filter((item) => item.uid !== card.uid),
-        ...(isPrivateZone(to) ? {} : { [to]: [card, ...current[to]] }),
-      };
-    });
-    if (isPrivateZone(to)) {
-      updatePrivate({ ...privateState, [to]: [publicToPrivate(card), ...privateState[to]] });
-    }
-  }
 
-  function moveSelected(to: AnyZone) {
-    if (!selected || selected.owner !== playerId) return;
-    if (selected.privateCard) {
-      movePrivateCard(selected.card as CardInstance, selected.zone as PrivateZone, to);
-    } else {
-      movePublicCard(selected.card as PublicCard, selected.zone as PublicZone, to);
+      setPrivateState(next.privateState);
+      await publish(next.publicRoom);
+      setSelected(null);
+    } finally {
+      setIsMoving(false);
     }
-    setSelected(null);
   }
 
   function adjustSelectedDamage(delta: number) {
@@ -671,6 +658,7 @@ function OnlineBattleApp() {
         <MoveDialog
           selected={selected}
           canMove={selected.owner === playerId}
+          isMoving={isMoving}
           damage={selected.privateCard ? 0 : myPublic.damageCounters[(selected.card as PublicCard).uid] || 0}
           onAdjustDamage={adjustSelectedDamage}
           onClose={() => setSelected(null)}
@@ -978,6 +966,7 @@ function CardListModal({
 function MoveDialog({
   selected,
   canMove,
+  isMoving,
   damage,
   onAdjustDamage,
   onClose,
@@ -985,6 +974,7 @@ function MoveDialog({
 }: {
   selected: SelectedCard;
   canMove: boolean;
+  isMoving: boolean;
   damage: number;
   onAdjustDamage: (delta: number) => void;
   onClose: () => void;
@@ -1005,16 +995,16 @@ function MoveDialog({
           {canEditDamage && (
             <div className="damage-controls">
               <strong>ダメカン: {damage}</strong>
-              <button onClick={() => onAdjustDamage(-10)}>-10</button>
-              <button onClick={() => onAdjustDamage(10)}>+10</button>
-              <button onClick={() => onAdjustDamage(50)}>+50</button>
-              <button onClick={() => onAdjustDamage(-damage)}>0</button>
+              <button onClick={() => onAdjustDamage(-10)} disabled={isMoving}>-10</button>
+              <button onClick={() => onAdjustDamage(10)} disabled={isMoving}>+10</button>
+              <button onClick={() => onAdjustDamage(50)} disabled={isMoving}>+50</button>
+              <button onClick={() => onAdjustDamage(-damage)} disabled={isMoving}>0</button>
             </div>
           )}
           {canMove ? (
             <div className="move-grid">
               {destinations.map((zone) => (
-                <button key={zone} disabled={zone === selected.zone} onClick={() => onMove(zone)}>
+                <button key={zone} disabled={isMoving || zone === selected.zone} onClick={() => onMove(zone)}>
                   {zoneLabel(zone)}へ
                 </button>
               ))}
@@ -1022,7 +1012,7 @@ function MoveDialog({
           ) : (
             <p className="message">相手のカードは移動できません。</p>
           )}
-          <button onClick={onClose}>閉じる</button>
+          <button onClick={onClose} disabled={isMoving}>閉じる</button>
         </div>
       </dialog>
     </div>
@@ -1060,6 +1050,94 @@ function publicToPrivate(card: PublicCard): CardInstance {
   return {
     ...card,
     originalCount: 1,
+  };
+}
+
+function removeFromPrivateZones(state: PrivatePlayerState, uid: string): PrivatePlayerState {
+  return PRIVATE_ZONES.reduce(
+    (next, zone) => ({
+      ...next,
+      [zone]: next[zone].filter((card) => card.uid !== uid),
+    }),
+    { ...state },
+  );
+}
+
+function removeFromPublicZones(state: PublicPlayerState, uid: string): PublicPlayerState {
+  return PUBLIC_ZONES.reduce(
+    (next, zone) => ({
+      ...next,
+      [zone]: next[zone].filter((card) => card.uid !== uid),
+    }),
+    { ...state },
+  );
+}
+
+function addToPrivateZone(state: PrivatePlayerState, zone: PrivateZone, card: CardInstance): PrivatePlayerState {
+  const deduped = removeFromPrivateZones(state, card.uid);
+  return {
+    ...deduped,
+    [zone]: [card, ...deduped[zone]],
+  };
+}
+
+function addToPublicZone(state: PublicPlayerState, zone: PublicZone, card: PublicCard): PublicPlayerState {
+  const deduped = removeFromPublicZones(state, card.uid);
+  return {
+    ...deduped,
+    [zone]: [card, ...deduped[zone]],
+  };
+}
+
+function atomicMoveSelectedCard({
+  selected,
+  to,
+  privateState,
+  publicRoom,
+  playerId,
+}: {
+  selected: SelectedCard;
+  to: AnyZone;
+  privateState: PrivatePlayerState;
+  publicRoom: PublicRoomState;
+  playerId: PlayerId;
+}): { privateState: PrivatePlayerState; publicRoom: PublicRoomState } | null {
+  const uid = selected.card.uid;
+  const from = selected.zone;
+  const currentPublic = publicRoom.playerStates[playerId];
+  const existsInSource = selected.privateCard
+    ? isPrivateZone(from) && privateState[from].some((card) => card.uid === uid)
+    : !isPrivateZone(from) && currentPublic[from].some((card) => card.uid === uid);
+
+  if (!existsInSource) return null;
+
+  let nextPrivate = removeFromPrivateZones(privateState, uid);
+  let nextPublic = removeFromPublicZones(currentPublic, uid);
+  const damageCounters = { ...nextPublic.damageCounters };
+  if (isPrivateZone(to) || to === "discard" || to === "lostZone" || to === "stadium") {
+    delete damageCounters[uid];
+  }
+  nextPublic = { ...nextPublic, damageCounters };
+
+  if (isPrivateZone(to)) {
+    const privateCard = selected.privateCard ? (selected.card as CardInstance) : publicToPrivate(selected.card as PublicCard);
+    nextPrivate = addToPrivateZone(nextPrivate, to, privateCard);
+  } else {
+    const publicCard = selected.privateCard ? toPublicCard(selected.card as CardInstance) : (selected.card as PublicCard);
+    nextPublic = addToPublicZone(nextPublic, to, publicCard);
+  }
+
+  nextPublic = syncCounts(nextPublic, nextPrivate);
+
+  return {
+    privateState: nextPrivate,
+    publicRoom: {
+      ...publicRoom,
+      playerStates: {
+        ...publicRoom.playerStates,
+        [playerId]: nextPublic,
+      },
+    },
   };
 }
 
