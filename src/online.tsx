@@ -30,7 +30,7 @@ type PlayerId = "A" | "B";
 type PrivateZone = "deck" | "hand" | "prizes";
 type PublicZone = "active" | "bench" | "discard" | "lostZone" | "stadium";
 type AnyZone = PrivateZone | PublicZone;
-type MoveDestination = AnyZone | "activeFaceDown";
+type MoveDestination = AnyZone | "activeFaceDown" | "revealActive";
 type CoinResult = "heads" | "tails";
 type ListViewer = { playerId: PlayerId; zone: "discard" | "lostZone" } | null;
 type AttachTarget = { uid: string; name: string };
@@ -695,6 +695,12 @@ function OnlineBattleApp() {
         <MoveDialog
           selected={selected}
           canMove={selected.owner === playerId && !selected.readOnly}
+          canRevealFaceDown={
+            selected.owner === playerId &&
+            !selected.privateCard &&
+            selected.zone === "active" &&
+            Boolean((selected.card as PublicCard).faceDown && privateState.faceDownPublicCards[(selected.card as PublicCard).uid])
+          }
           isMoving={isMoving}
           attachTargets={selected.sourceCard ? [] : buildAttachTargets(myPublic, selected.card.uid)}
           damage={selected.privateCard ? 0 : myPublic.damageCounters[((selected.sourceCard ?? selected.card) as PublicCard).uid] || 0}
@@ -1139,6 +1145,7 @@ function CardListModal({
 function MoveDialog({
   selected,
   canMove,
+  canRevealFaceDown,
   isMoving,
   attachTargets,
   damage,
@@ -1149,6 +1156,7 @@ function MoveDialog({
 }: {
   selected: SelectedCard;
   canMove: boolean;
+  canRevealFaceDown: boolean;
   isMoving: boolean;
   attachTargets: AttachTarget[];
   damage: number;
@@ -1193,6 +1201,11 @@ function MoveDialog({
               {selected.privateCard && (
                 <button className="face-down-action" disabled={isMoving} onClick={() => onMove("activeFaceDown")}>
                   バトル場へ（裏面）
+                </button>
+              )}
+              {canRevealFaceDown && (
+                <button className="face-down-action" disabled={isMoving} onClick={() => onMove("revealActive")}>
+                  表面にする
                 </button>
               )}
               <div className="move-grid">
@@ -1335,7 +1348,7 @@ function atomicMoveSelectedCard({
   const sourceCard = selected.sourceCard ?? selected.card;
   const uid = sourceCard.uid;
   const from = selected.zone;
-  const toZone: AnyZone = to === "activeFaceDown" ? "active" : to;
+  const toZone: AnyZone = to === "activeFaceDown" || to === "revealActive" ? "active" : to;
   const currentPublic = publicRoom.playerStates[playerId];
   const attachedToMovedCard = currentPublic.attachedCards?.[uid] || [];
   const faceDownPrivateCard = !selected.privateCard && (sourceCard as PublicCard).faceDown
@@ -1360,7 +1373,19 @@ function atomicMoveSelectedCard({
   }
   nextPublic = { ...nextPublic, damageCounters };
 
-  if (to === "activeFaceDown" && selected.privateCard) {
+  if (to === "revealActive" && !selected.privateCard) {
+    if (!faceDownPrivateCard) return null;
+    nextPublic = addToPublicZone(nextPublic, "active", toPublicCard(faceDownPrivateCard));
+    if (attachedToMovedCard.length > 0) {
+      nextPublic = {
+        ...nextPublic,
+        attachedCards: {
+          ...nextPublic.attachedCards,
+          [uid]: attachedToMovedCard,
+        },
+      };
+    }
+  } else if (to === "activeFaceDown" && selected.privateCard) {
     const privateCard = sourceCard as CardInstance;
     nextPrivate = {
       ...nextPrivate,
