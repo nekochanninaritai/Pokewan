@@ -32,6 +32,7 @@ type PublicZone = "active" | "bench" | "discard" | "lostZone" | "stadium";
 type AnyZone = PrivateZone | PublicZone;
 type CoinResult = "heads" | "tails";
 type ListViewer = { playerId: PlayerId; zone: "discard" | "lostZone" } | null;
+type AttachTarget = { uid: string; name: string };
 
 type PublicCard = Pick<CardInstance, "uid" | "id" | "name" | "imageUrl" | "category">;
 
@@ -448,6 +449,34 @@ function OnlineBattleApp() {
     }
   }
 
+  async function attachSelected(targetUid: string) {
+    if (!selected || selected.owner !== playerId || isMoving) return;
+    if (!publicRoom) return;
+
+    setIsMoving(true);
+    try {
+      const next = atomicAttachSelectedCard({
+        selected,
+        targetUid,
+        privateState,
+        publicRoom,
+        playerId,
+      });
+
+      if (!next) {
+        setMessage("カードの現在位置が変わっています。再選択してください。");
+        setSelected(null);
+        return;
+      }
+
+      setPrivateState(next.privateState);
+      await publish(next.publicRoom);
+      setSelected(null);
+    } finally {
+      setIsMoving(false);
+    }
+  }
+
   function adjustSelectedDamage(delta: number) {
     if (!selected || selected.owner !== playerId || selected.privateCard) return;
     const card = selected.card as PublicCard;
@@ -659,8 +688,10 @@ function OnlineBattleApp() {
           selected={selected}
           canMove={selected.owner === playerId}
           isMoving={isMoving}
+          attachTargets={buildAttachTargets(myPublic, selected.card.uid)}
           damage={selected.privateCard ? 0 : myPublic.damageCounters[(selected.card as PublicCard).uid] || 0}
           onAdjustDamage={adjustSelectedDamage}
+          onAttach={attachSelected}
           onClose={() => setSelected(null)}
           onMove={moveSelected}
         />
@@ -729,7 +760,15 @@ function PlayerBoard({
           action={isMine && publicState.prizeCount > 0 ? { label: "1枚ドロー", onClick: onPrizeDraw } : undefined}
           onSelect={onSelect}
         />
-        <PublicZoneView title="バトル場" zone="active" cards={publicState.active} owner={playerId} damageCounters={publicState.damageCounters} onSelect={onSelect} />
+        <PublicZoneView
+          title="バトル場"
+          zone="active"
+          cards={publicState.active}
+          owner={playerId}
+          attachedCards={publicState.attachedCards}
+          damageCounters={publicState.damageCounters}
+          onSelect={onSelect}
+        />
         <PublicZoneView title="スタジアム" zone="stadium" cards={publicState.stadium} owner={playerId} damageCounters={publicState.damageCounters} onSelect={onSelect} />
         <HiddenZone
           title="山札"
@@ -741,7 +780,15 @@ function PlayerBoard({
           action={isMine && publicState.deckCount > 0 ? { label: "1枚ドロー", onClick: onDeckDraw } : undefined}
           onSelect={onSelect}
         />
-        <PublicZoneView title="ベンチ" zone="bench" cards={publicState.bench} owner={playerId} damageCounters={publicState.damageCounters} onSelect={onSelect} />
+        <PublicZoneView
+          title="ベンチ"
+          zone="bench"
+          cards={publicState.bench}
+          owner={playerId}
+          attachedCards={publicState.attachedCards}
+          damageCounters={publicState.damageCounters}
+          onSelect={onSelect}
+        />
         <PublicZoneView
           title="トラッシュ"
           zone="discard"
@@ -860,6 +907,7 @@ function PublicZoneView({
   zone,
   cards,
   owner,
+  attachedCards = {},
   damageCounters,
   compactLatest = false,
   onOpenList,
@@ -869,6 +917,7 @@ function PublicZoneView({
   zone: PublicZone;
   cards: PublicCard[];
   owner: PlayerId;
+  attachedCards?: Record<string, PublicCard[]>;
   damageCounters: Record<string, number>;
   compactLatest?: boolean;
   onOpenList?: () => void;
@@ -893,13 +942,23 @@ function PublicZoneView({
       </header>
       <div className="card-grid">
         {visibleCards.map((card) => (
-          <CardButton
-            key={card.uid}
-            card={card}
-            faceDown={false}
-            damage={damageCounters[card.uid] || 0}
-            onClick={() => onSelect({ card, zone, owner, privateCard: false })}
-          />
+          zone === "active" || zone === "bench" ? (
+            <BattleCardStack
+              key={card.uid}
+              card={card}
+              attachedCards={attachedCards[card.uid] || []}
+              damage={damageCounters[card.uid] || 0}
+              onSelect={() => onSelect({ card, zone, owner, privateCard: false })}
+            />
+          ) : (
+            <CardButton
+              key={card.uid}
+              card={card}
+              faceDown={false}
+              damage={damageCounters[card.uid] || 0}
+              onClick={() => onSelect({ card, zone, owner, privateCard: false })}
+            />
+          )
         ))}
         {compactLatest && cards.length === 0 && <p className="empty-list">なし</p>}
       </div>
@@ -926,6 +985,38 @@ function CardButton({
       </span>
       <span>{faceDown ? "裏向き" : card.name}</span>
     </button>
+  );
+}
+
+function BattleCardStack({
+  card,
+  attachedCards,
+  damage,
+  onSelect,
+}: {
+  card: PublicCard;
+  attachedCards: PublicCard[];
+  damage: number;
+  onSelect: () => void;
+}) {
+  return (
+    <div className="battle-card-stack">
+      <CardButton card={card} faceDown={false} damage={damage} onClick={onSelect} />
+      {attachedCards.length > 0 && (
+        <div className="attached-cards" aria-label={`${card.name}についているカード`}>
+          {attachedCards.map((attached) => (
+            <img
+              key={attached.uid}
+              className="attached-card"
+              src={attached.imageUrl}
+              alt={attached.name}
+              title={attached.name}
+              loading="lazy"
+            />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -967,16 +1058,20 @@ function MoveDialog({
   selected,
   canMove,
   isMoving,
+  attachTargets,
   damage,
   onAdjustDamage,
+  onAttach,
   onClose,
   onMove,
 }: {
   selected: SelectedCard;
   canMove: boolean;
   isMoving: boolean;
+  attachTargets: AttachTarget[];
   damage: number;
   onAdjustDamage: (delta: number) => void;
+  onAttach: (targetUid: string) => void;
   onClose: () => void;
   onMove: (zone: AnyZone) => void;
 }) {
@@ -1002,13 +1097,24 @@ function MoveDialog({
             </div>
           )}
           {canMove ? (
-            <div className="move-grid">
-              {destinations.map((zone) => (
-                <button key={zone} disabled={isMoving || zone === selected.zone} onClick={() => onMove(zone)}>
-                  {zoneLabel(zone)}へ
-                </button>
-              ))}
-            </div>
+            <>
+              {attachTargets.length > 0 && (
+                <div className="attach-grid">
+                  {attachTargets.map((target) => (
+                    <button key={target.uid} disabled={isMoving} onClick={() => onAttach(target.uid)}>
+                      {target.name}につける
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="move-grid">
+                {destinations.map((zone) => (
+                  <button key={zone} disabled={isMoving || zone === selected.zone} onClick={() => onMove(zone)}>
+                    {zoneLabel(zone)}へ
+                  </button>
+                ))}
+              </div>
+            </>
           ) : (
             <p className="message">相手のカードは移動できません。</p>
           )}
@@ -1064,13 +1170,20 @@ function removeFromPrivateZones(state: PrivatePlayerState, uid: string): Private
 }
 
 function removeFromPublicZones(state: PublicPlayerState, uid: string): PublicPlayerState {
-  return PUBLIC_ZONES.reduce(
+  const withoutPublicZones = PUBLIC_ZONES.reduce(
     (next, zone) => ({
       ...next,
       [zone]: next[zone].filter((card) => card.uid !== uid),
     }),
     { ...state },
   );
+  const attachedCards = Object.fromEntries(
+    Object.entries(withoutPublicZones.attachedCards || {})
+      .filter(([targetUid]) => targetUid !== uid)
+      .map(([targetUid, cards]) => [targetUid, cards.filter((card) => card.uid !== uid)])
+      .filter(([, cards]) => cards.length > 0),
+  );
+  return { ...withoutPublicZones, attachedCards };
 }
 
 function addToPrivateZone(state: PrivatePlayerState, zone: PrivateZone, card: CardInstance): PrivatePlayerState {
@@ -1089,6 +1202,12 @@ function addToPublicZone(state: PublicPlayerState, zone: PublicZone, card: Publi
   };
 }
 
+function buildAttachTargets(publicState: PublicPlayerState, selectedUid: string): AttachTarget[] {
+  return [...publicState.active, ...publicState.bench]
+    .filter((card) => card.uid !== selectedUid)
+    .map((card) => ({ uid: card.uid, name: card.name }));
+}
+
 function atomicMoveSelectedCard({
   selected,
   to,
@@ -1105,6 +1224,7 @@ function atomicMoveSelectedCard({
   const uid = selected.card.uid;
   const from = selected.zone;
   const currentPublic = publicRoom.playerStates[playerId];
+  const attachedToMovedCard = currentPublic.attachedCards?.[uid] || [];
   const existsInSource = selected.privateCard
     ? isPrivateZone(from) && privateState[from].some((card) => card.uid === uid)
     : !isPrivateZone(from) && currentPublic[from].some((card) => card.uid === uid);
@@ -1119,7 +1239,38 @@ function atomicMoveSelectedCard({
   }
   nextPublic = { ...nextPublic, damageCounters };
 
-  if (isPrivateZone(to)) {
+  if (!selected.privateCard && attachedToMovedCard.length > 0 && to === "discard") {
+    nextPublic = {
+      ...nextPublic,
+      discard: [selected.card as PublicCard, ...attachedToMovedCard, ...nextPublic.discard],
+    };
+  } else if (!selected.privateCard && attachedToMovedCard.length > 0 && to === "lostZone") {
+    nextPublic = {
+      ...nextPublic,
+      lostZone: [selected.card as PublicCard, ...attachedToMovedCard, ...nextPublic.lostZone],
+    };
+  } else if (!selected.privateCard && attachedToMovedCard.length > 0 && isPrivateZone(to)) {
+    nextPrivate = addToPrivateZone(nextPrivate, to, publicToPrivate(selected.card as PublicCard));
+    nextPublic = {
+      ...nextPublic,
+      discard: [...attachedToMovedCard, ...nextPublic.discard],
+    };
+  } else if (!selected.privateCard && attachedToMovedCard.length > 0 && (to === "active" || to === "bench")) {
+    nextPublic = addToPublicZone(nextPublic, to, selected.card as PublicCard);
+    nextPublic = {
+      ...nextPublic,
+      attachedCards: {
+        ...nextPublic.attachedCards,
+        [uid]: attachedToMovedCard,
+      },
+    };
+  } else if (!selected.privateCard && attachedToMovedCard.length > 0) {
+    nextPublic = addToPublicZone(nextPublic, to as PublicZone, selected.card as PublicCard);
+    nextPublic = {
+      ...nextPublic,
+      discard: [...attachedToMovedCard, ...nextPublic.discard],
+    };
+  } else if (isPrivateZone(to)) {
     const privateCard = selected.privateCard ? (selected.card as CardInstance) : publicToPrivate(selected.card as PublicCard);
     nextPrivate = addToPrivateZone(nextPrivate, to, privateCard);
   } else {
@@ -1127,6 +1278,54 @@ function atomicMoveSelectedCard({
     nextPublic = addToPublicZone(nextPublic, to, publicCard);
   }
 
+  nextPublic = syncCounts(nextPublic, nextPrivate);
+
+  return {
+    privateState: nextPrivate,
+    publicRoom: {
+      ...publicRoom,
+      playerStates: {
+        ...publicRoom.playerStates,
+        [playerId]: nextPublic,
+      },
+    },
+  };
+}
+
+function atomicAttachSelectedCard({
+  selected,
+  targetUid,
+  privateState,
+  publicRoom,
+  playerId,
+}: {
+  selected: SelectedCard;
+  targetUid: string;
+  privateState: PrivatePlayerState;
+  publicRoom: PublicRoomState;
+  playerId: PlayerId;
+}): { privateState: PrivatePlayerState; publicRoom: PublicRoomState } | null {
+  const uid = selected.card.uid;
+  const from = selected.zone;
+  const currentPublic = publicRoom.playerStates[playerId];
+  const targetExists = [...currentPublic.active, ...currentPublic.bench].some((card) => card.uid === targetUid);
+  const existsInSource = selected.privateCard
+    ? isPrivateZone(from) && privateState[from].some((card) => card.uid === uid)
+    : !isPrivateZone(from) && currentPublic[from].some((card) => card.uid === uid);
+
+  if (!targetExists || !existsInSource || uid === targetUid) return null;
+
+  let nextPrivate = removeFromPrivateZones(privateState, uid);
+  let nextPublic = removeFromPublicZones(currentPublic, uid);
+  const publicCard = selected.privateCard ? toPublicCard(selected.card as CardInstance) : (selected.card as PublicCard);
+  const currentAttached = nextPublic.attachedCards[targetUid] || [];
+  nextPublic = {
+    ...nextPublic,
+    attachedCards: {
+      ...nextPublic.attachedCards,
+      [targetUid]: [...currentAttached.filter((card) => card.uid !== uid), publicCard],
+    },
+  };
   nextPublic = syncCounts(nextPublic, nextPrivate);
 
   return {
