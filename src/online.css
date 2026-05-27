@@ -1827,8 +1827,24 @@ label span {
   .solo-app .quick-control-group > span,
   .solo-app .quick-control-group:nth-child(3),
   .solo-app .quick-control-group:first-child button:first-of-type,
+  .solo-app .quick-control-group:first-child button:nth-of-type(4),
   .solo-app .quick-control-group:nth-child(2) button:first-of-type {
     display: none;
+  }
+
+  .solo-app .zone-deck .mini-action,
+  .solo-app .zone-prizes .mini-action {
+    align-items: center;
+    background: #0f1d1a;
+    border-color: #0f1d1a;
+    border-radius: 999px;
+    color: #ffffff;
+    display: inline-flex;
+    font-size: 0.62rem;
+    line-height: 1;
+    min-height: 24px;
+    padding: 4px 7px;
+    white-space: nowrap;
   }
 
   .solo-app .quick-controls button,
