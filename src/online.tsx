@@ -30,7 +30,7 @@ type PlayerId = "A" | "B";
 type PrivateZone = "deck" | "hand" | "prizes";
 type PublicZone = "active" | "bench" | "discard" | "lostZone" | "stadium";
 type AnyZone = PrivateZone | PublicZone;
-type MoveDestination = AnyZone | "activeFaceDown" | "revealActive";
+type MoveDestination = AnyZone | "activeFaceDown" | "benchFaceDown" | "revealActive";
 type CoinResult = "heads" | "tails";
 type ListViewer = { playerId: PlayerId; zone: "discard" | "lostZone" } | null;
 type TargetCandidate = {
@@ -490,6 +490,27 @@ function OnlineBattleApp() {
     }
   }
 
+  async function revealBenchFaceDownCards() {
+    if (!publicRoom || isMoving) return;
+    const next = atomicRevealBenchFaceDownCards({
+      privateState,
+      publicRoom,
+      playerId,
+    });
+    if (!next) {
+      setMessage("表面にできるベンチの裏向きカードがありません。");
+      return;
+    }
+
+    setIsMoving(true);
+    try {
+      setPrivateState(next.privateState);
+      await publish(next.publicRoom);
+    } finally {
+      setIsMoving(false);
+    }
+  }
+
   function adjustSelectedDamage(delta: number) {
     if (!selected || selected.owner !== playerId || selected.privateCard) return;
     const card = (selected.sourceCard ?? selected.card) as PublicCard;
@@ -522,6 +543,7 @@ function OnlineBattleApp() {
   }
 
   const listCards = listViewer && publicRoom ? publicRoom.playerStates[listViewer.playerId][listViewer.zone] : [];
+  const hasRevealableBench = myPublic.bench.some((card) => card.faceDown && privateState.faceDownPublicCards[card.uid]);
 
   return (
     <div className="online-app">
@@ -640,6 +662,10 @@ function OnlineBattleApp() {
             <button onClick={() => setDeckPeekOpen(true)} disabled={!privateState.deck.length}>
               <Eye />
               自分だけ山札確認
+            </button>
+            <button onClick={revealBenchFaceDownCards} disabled={!hasRevealableBench || isMoving}>
+              <Eye />
+              ベンチを表面にする
             </button>
             <button onClick={resetLocalPrivate}>
               <RotateCcw />
@@ -1217,9 +1243,14 @@ function MoveDialog({
                 </div>
               )}
               {selected.privateCard && (
-                <button className="face-down-action" disabled={isMoving} onClick={() => onMove("activeFaceDown")}>
-                  バトル場へ（裏面）
-                </button>
+                <div className="face-down-action-grid">
+                  <button className="face-down-action" disabled={isMoving} onClick={() => onMove("activeFaceDown")}>
+                    バトル場へ（裏面）
+                  </button>
+                  <button className="face-down-action" disabled={isMoving} onClick={() => onMove("benchFaceDown")}>
+                    ベンチへ（裏面）
+                  </button>
+                </div>
               )}
               {canRevealFaceDown && (
                 <button className="face-down-action" disabled={isMoving} onClick={() => onMove("revealActive")}>
@@ -1447,7 +1478,8 @@ function atomicMoveSelectedCard({
   const sourceCard = selected.sourceCard ?? selected.card;
   const uid = sourceCard.uid;
   const from = selected.zone;
-  const toZone: AnyZone = to === "activeFaceDown" || to === "revealActive" ? "active" : to;
+  const toZone: AnyZone =
+    to === "activeFaceDown" || to === "revealActive" ? "active" : to === "benchFaceDown" ? "bench" : to;
   const currentPublic = publicRoom.playerStates[playerId];
   const attachedToMovedCard = currentPublic.attachedCards?.[uid] || [];
   const faceDownPrivateCard = !selected.privateCard && (sourceCard as PublicCard).faceDown
@@ -1484,7 +1516,7 @@ function atomicMoveSelectedCard({
         },
       };
     }
-  } else if (to === "activeFaceDown" && selected.privateCard) {
+  } else if ((to === "activeFaceDown" || to === "benchFaceDown") && selected.privateCard) {
     const privateCard = sourceCard as CardInstance;
     nextPrivate = {
       ...nextPrivate,
@@ -1493,7 +1525,7 @@ function atomicMoveSelectedCard({
         [uid]: privateCard,
       },
     };
-    nextPublic = addToPublicZone(nextPublic, "active", toPublicCard(privateCard, { faceDown: true }));
+    nextPublic = addToPublicZone(nextPublic, to === "activeFaceDown" ? "active" : "bench", toPublicCard(privateCard, { faceDown: true }));
   } else if (!selected.privateCard && attachedToMovedCard.length > 0 && toZone === "discard") {
     nextPublic = {
       ...nextPublic,
@@ -1544,6 +1576,47 @@ function atomicMoveSelectedCard({
       playerStates: {
         ...publicRoom.playerStates,
         [playerId]: nextPublic,
+      },
+    },
+  };
+}
+
+function atomicRevealBenchFaceDownCards({
+  privateState,
+  publicRoom,
+  playerId,
+}: {
+  privateState: PrivatePlayerState;
+  publicRoom: PublicRoomState;
+  playerId: PlayerId;
+}): { privateState: PrivatePlayerState; publicRoom: PublicRoomState } | null {
+  const currentPublic = publicRoom.playerStates[playerId];
+  const faceDownPublicCards = { ...(privateState.faceDownPublicCards || {}) };
+  let changed = false;
+  const bench = currentPublic.bench.map((card) => {
+    if (!card.faceDown) return card;
+    const privateCard = faceDownPublicCards[card.uid];
+    if (!privateCard) return card;
+    changed = true;
+    delete faceDownPublicCards[card.uid];
+    return toPublicCard(privateCard);
+  });
+
+  if (!changed) return null;
+
+  return {
+    privateState: {
+      ...privateState,
+      faceDownPublicCards,
+    },
+    publicRoom: {
+      ...publicRoom,
+      playerStates: {
+        ...publicRoom.playerStates,
+        [playerId]: {
+          ...currentPublic,
+          bench,
+        },
       },
     },
   };

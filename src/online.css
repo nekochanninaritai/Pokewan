@@ -837,6 +837,12 @@ label span {
   font-weight: 900;
 }
 
+.face-down-action-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .face-down-action {
   background: #141d1b;
   border-color: #141d1b;
