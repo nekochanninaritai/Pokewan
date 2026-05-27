@@ -4,6 +4,7 @@ export type Card = {
   imageUrl: string;
   count: number;
   category?: "pokemon" | "trainer" | "energy";
+  role?: "pokemonTool";
 };
 
 export type CardInstance = Omit<Card, "count"> & {

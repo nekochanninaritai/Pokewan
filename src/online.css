@@ -566,6 +566,43 @@ label span {
   z-index: 2;
 }
 
+.tool-overlays {
+  pointer-events: none;
+  position: absolute;
+  right: -14px;
+  top: 12px;
+  z-index: 4;
+}
+
+.tool-overlay-card {
+  aspect-ratio: 63 / 88;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: none;
+  cursor: pointer;
+  display: block;
+  min-height: 0;
+  padding: 0;
+  pointer-events: auto;
+  transform: translate(var(--tool-offset), var(--tool-offset)) rotate(2deg);
+  width: 42%;
+}
+
+.tool-overlay-card + .tool-overlay-card {
+  margin-top: -58%;
+}
+
+.tool-overlay-card img {
+  aspect-ratio: 63 / 88;
+  border-radius: 6px;
+  box-shadow: -3px 4px 9px rgba(0, 0, 0, 0.3);
+  display: block;
+  height: auto;
+  object-fit: cover;
+  width: 100%;
+}
+
 .evolution-history {
   align-items: center;
   color: #52625e;

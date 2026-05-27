@@ -34,7 +34,7 @@ type CoinResult = "heads" | "tails";
 type ListViewer = { playerId: PlayerId; zone: "discard" | "lostZone" } | null;
 type AttachTarget = { uid: string; name: string };
 
-type PublicCard = Pick<CardInstance, "uid" | "id" | "name" | "imageUrl" | "category">;
+type PublicCard = Pick<CardInstance, "uid" | "id" | "name" | "imageUrl" | "category" | "role">;
 
 type PrivatePlayerState = {
   deck: CardInstance[];
@@ -1004,7 +1004,8 @@ function BattleCardStack({
   onSelect: (card: PublicCard, readOnly?: boolean, sourceCard?: PublicCard) => void;
 }) {
   const evolutionCards = attachedCards.filter(isPokemonCard);
-  const supportCards = attachedCards.filter((attached) => !isPokemonCard(attached));
+  const toolCards = attachedCards.filter(isPokemonToolCard);
+  const supportCards = attachedCards.filter((attached) => !isPokemonCard(attached) && !isPokemonToolCard(attached));
   const evolutionLine = [card, ...evolutionCards];
   const topCard = evolutionLine[evolutionLine.length - 1];
   const baseCards = evolutionLine.slice(0, -1);
@@ -1029,6 +1030,21 @@ function BattleCardStack({
           damage={damage}
           onClick={() => onSelect(topCard, false, topCard.uid === card.uid ? undefined : card)}
         />
+        {toolCards.length > 0 && (
+          <div className="tool-overlays" aria-label={`${topCard.name}についているポケモンのどうぐ`}>
+            {toolCards.map((tool, index) => (
+              <button
+                key={tool.uid}
+                className="tool-overlay-card"
+                style={{ "--tool-offset": `${index * 10}px` } as React.CSSProperties}
+                title={tool.name}
+                onClick={() => onSelect(tool, true)}
+              >
+                <img src={tool.imageUrl} alt={tool.name} loading="lazy" />
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       {evolutionCards.length > 0 && (
         <div className="evolution-history" aria-label={`${card.name}の進化元`}>
@@ -1193,6 +1209,7 @@ function toPublicCard(card: CardInstance): PublicCard {
     name: card.name,
     imageUrl: card.imageUrl,
     category: card.category,
+    role: card.role,
   };
 }
 
@@ -1205,6 +1222,10 @@ function publicToPrivate(card: PublicCard): CardInstance {
 
 function isPokemonCard(card: CardInstance | PublicCard) {
   return card.category === "pokemon";
+}
+
+function isPokemonToolCard(card: CardInstance | PublicCard) {
+  return card.role === "pokemonTool";
 }
 
 function removeFromPrivateZones(state: PrivatePlayerState, uid: string): PrivatePlayerState {

@@ -2,10 +2,10 @@ import type { Card, CardInstance } from "./types";
 
 const OFFICIAL_ORIGIN = "https://www.pokemon-card.com";
 
-const DECK_FIELDS: Array<{ field: string; category?: Card["category"] }> = [
+const DECK_FIELDS: Array<{ field: string; category?: Card["category"]; role?: Card["role"] }> = [
   { field: "deck_pke", category: "pokemon" },
   { field: "deck_gds", category: "trainer" },
-  { field: "deck_tool", category: "trainer" },
+  { field: "deck_tool", category: "trainer", role: "pokemonTool" },
   { field: "deck_tech", category: "trainer" },
   { field: "deck_sup", category: "trainer" },
   { field: "deck_sta", category: "trainer" },
@@ -54,6 +54,7 @@ export function expandDeck(cards: Card[]): CardInstance[] {
       name: card.name,
       imageUrl: card.imageUrl,
       category: card.category,
+      role: card.role,
       originalCount: card.count,
       uid: `${card.id}-${index + 1}-${crypto.randomUUID()}`,
     })),
@@ -66,7 +67,7 @@ function cardsFromOfficialConfirmPage(doc: Document, html: string): Card[] {
   const pictures = parseOfficialMap(html, "searchItemCardPict");
   const cards: Card[] = [];
 
-  for (const { field, category } of DECK_FIELDS) {
+  for (const { field, category, role } of DECK_FIELDS) {
     const value = doc.querySelector<HTMLInputElement>(`#${field}, input[name="${field}"]`)?.value || "";
     for (const entry of parseDeckField(value)) {
       const name = cleanName(names.get(entry.id) || fallbackNames.get(entry.id) || `カード ${entry.id}`);
@@ -78,6 +79,7 @@ function cardsFromOfficialConfirmPage(doc: Document, html: string): Card[] {
         imageUrl,
         count: entry.count,
         category,
+        role,
       });
     }
   }
@@ -130,6 +132,7 @@ function cardsFromImages(doc: Document): Card[] {
       imageUrl: src,
       count,
       category: inferCategory(`${name} ${parentText}`),
+      role: inferRole(`${name} ${parentText}`),
     };
   });
 }
@@ -155,6 +158,7 @@ function cardsFromScripts(html: string): Card[] {
       imageUrl,
       count,
       category: inferCategory(nearby),
+      role: inferRole(nearby),
     };
   });
 }
@@ -171,6 +175,7 @@ function mergeCards(cards: Card[]) {
     existing.count = Math.max(existing.count, card.count);
     existing.name = existing.name.startsWith("カード ") ? card.name : existing.name;
     existing.category ||= card.category;
+    existing.role ||= card.role;
   }
   return Array.from(byId.values());
 }
@@ -202,6 +207,11 @@ function inferCategory(text: string): Card["category"] {
   if (/エネルギー|基本[^\s]*エネルギー|特殊[^\s]*エネルギー|_E_/i.test(text)) return "energy";
   if (/グッズ|サポート|スタジアム|ポケモンのどうぐ|トレーナーズ|trainer|_T_/i.test(text)) return "trainer";
   if (/ポケモン|ex|VSTAR|VMAX|GX|たね|進化|_P_/i.test(text)) return "pokemon";
+  return undefined;
+}
+
+function inferRole(text: string): Card["role"] {
+  if (/ポケモンのどうぐ/i.test(text)) return "pokemonTool";
   return undefined;
 }
 
