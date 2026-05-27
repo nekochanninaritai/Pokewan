@@ -30,16 +30,20 @@ type PlayerId = "A" | "B";
 type PrivateZone = "deck" | "hand" | "prizes";
 type PublicZone = "active" | "bench" | "discard" | "lostZone" | "stadium";
 type AnyZone = PrivateZone | PublicZone;
+type MoveDestination = AnyZone | "activeFaceDown";
 type CoinResult = "heads" | "tails";
 type ListViewer = { playerId: PlayerId; zone: "discard" | "lostZone" } | null;
 type AttachTarget = { uid: string; name: string };
 
-type PublicCard = Pick<CardInstance, "uid" | "id" | "name" | "imageUrl" | "category" | "role">;
+type PublicCard = Pick<CardInstance, "uid" | "id" | "name" | "imageUrl" | "category" | "role"> & {
+  faceDown?: boolean;
+};
 
 type PrivatePlayerState = {
   deck: CardInstance[];
   hand: CardInstance[];
   prizes: CardInstance[];
+  faceDownPublicCards: Record<string, CardInstance>;
 };
 
 type PublicPlayerState = {
@@ -124,6 +128,7 @@ const emptyPrivate = (): PrivatePlayerState => ({
   deck: [],
   hand: [],
   prizes: [],
+  faceDownPublicCards: {},
 });
 
 const emptyPublicPlayer = (): PublicPlayerState => ({
@@ -350,7 +355,7 @@ function OnlineBattleApp() {
   async function applyDeckCards(parsed: Card[], source: string) {
     const total = parsed.reduce((sum, card) => sum + card.count, 0);
     const expanded = shuffleCards(expandDeck(parsed));
-    await updatePrivate({ deck: expanded, hand: [], prizes: [] });
+    await updatePrivate({ deck: expanded, hand: [], prizes: [], faceDownPublicCards: {} });
     setDeckPeekOpen(false);
     setDeckSummary(`${source}から${total}枚のデッキを読み込みました。非公開情報はこのブラウザだけに保存されます。`);
   }
@@ -423,7 +428,7 @@ function OnlineBattleApp() {
     });
   }
 
-  async function moveSelected(to: AnyZone) {
+  async function moveSelected(to: MoveDestination) {
     if (!selected || selected.owner !== playerId || isMoving) return;
     if (!publicRoom) return;
 
@@ -648,6 +653,7 @@ function OnlineBattleApp() {
                   playerId={seat}
                   viewerId={playerId}
                   onDeckDraw={isMine ? () => draw(1) : undefined}
+                  onDeckPeek={isMine ? () => setDeckPeekOpen(true) : undefined}
                   onPrizeDraw={isMine ? drawPrize : undefined}
                   onSelect={setSelected}
                   onOpenList={setListViewer}
@@ -709,6 +715,7 @@ function PlayerBoard({
   playerId,
   viewerId,
   onDeckDraw,
+  onDeckPeek,
   onPrizeDraw,
   onSelect,
   onOpenList,
@@ -720,6 +727,7 @@ function PlayerBoard({
   playerId: PlayerId;
   viewerId: PlayerId;
   onDeckDraw?: () => void;
+  onDeckPeek?: () => void;
   onPrizeDraw?: () => void;
   onSelect: (selected: SelectedCard) => void;
   onOpenList: (viewer: Exclude<ListViewer, null>) => void;
@@ -780,6 +788,7 @@ function PlayerBoard({
           zone="deck"
           className="zone-deck"
           action={isMine && publicState.deckCount > 0 ? { label: "1枚ドロー", onClick: onDeckDraw } : undefined}
+          onDeckPeek={isMine ? onDeckPeek : undefined}
           onSelect={onSelect}
         />
         <PublicZoneView
@@ -833,6 +842,7 @@ function HiddenZone({
   zone,
   action,
   className,
+  onDeckPeek,
   onSelect,
 }: {
   title: string;
@@ -842,6 +852,7 @@ function HiddenZone({
   zone: PrivateZone;
   action?: { label: string; onClick?: () => void };
   className?: string;
+  onDeckPeek?: () => void;
   onSelect: (selected: SelectedCard) => void;
 }) {
   return (
@@ -872,7 +883,7 @@ function HiddenZone({
           ))}
         </div>
       ) : zone === "deck" ? (
-        <DeckStack count={count} />
+        <DeckStack count={count} onClick={onDeckPeek} />
       ) : (
         <div className={zone === "prizes" ? "card-grid prize-grid" : "card-grid"}>
           {Array.from({ length: Math.min(count, zone === "prizes" ? 6 : 12) }, (_, index) => (
@@ -887,9 +898,9 @@ function HiddenZone({
   );
 }
 
-function DeckStack({ count }: { count: number }) {
-  return (
-    <div className="deck-stack-wrap" aria-label={`山札 ${count}枚`}>
+function DeckStack({ count, onClick }: { count: number; onClick?: () => void }) {
+  const content = (
+    <>
       {count > 0 ? (
         <div className="deck-stack" aria-hidden="true">
           <img className="deck-stack-card" src={CARD_BACK_URL} alt="" />
@@ -900,6 +911,18 @@ function DeckStack({ count }: { count: number }) {
         <p className="empty-list">山札なし</p>
       )}
       <p className="deck-stack-count">{count}枚</p>
+    </>
+  );
+
+  return (
+    <div className="deck-stack-wrap" aria-label={`山札 ${count}枚`}>
+      {onClick && count > 0 ? (
+        <button className="deck-stack-button" onClick={onClick} aria-label="自分だけ山札確認">
+          {content}
+        </button>
+      ) : (
+        content
+      )}
     </div>
   );
 }
@@ -981,13 +1004,14 @@ function CardButton({
   damage?: number;
   onClick: () => void;
 }) {
+  const isFaceDown = faceDown || Boolean((card as PublicCard).faceDown);
   return (
-    <button className={`card-tile ${faceDown ? "is-face-down" : ""}`} onClick={onClick}>
+    <button className={`card-tile ${isFaceDown ? "is-face-down" : ""}`} onClick={onClick}>
       <span className="card-image-wrap">
-        <img src={faceDown ? CARD_BACK_URL : card.imageUrl} alt={faceDown ? "裏向きカード" : card.name} loading="lazy" />
+        <img src={isFaceDown ? CARD_BACK_URL : card.imageUrl} alt={isFaceDown ? "裏向きカード" : card.name} loading="lazy" />
         {damage > 0 && <strong className="damage-badge">{damage}</strong>}
       </span>
-      <span>{faceDown ? "裏向き" : card.name}</span>
+      <span>{isFaceDown ? "裏向き" : card.name}</span>
     </button>
   );
 }
@@ -1131,7 +1155,7 @@ function MoveDialog({
   onAdjustDamage: (delta: number) => void;
   onAttach: (targetUid: string) => void;
   onClose: () => void;
-  onMove: (zone: AnyZone) => void;
+  onMove: (zone: MoveDestination) => void;
 }) {
   const imageUrl = selected.card.imageUrl;
   const name = selected.card.name;
@@ -1165,6 +1189,11 @@ function MoveDialog({
                     </button>
                   ))}
                 </div>
+              )}
+              {selected.privateCard && (
+                <button className="face-down-action" disabled={isMoving} onClick={() => onMove("activeFaceDown")}>
+                  バトル場へ（裏面）
+                </button>
               )}
               <div className="move-grid">
                 {destinations.map((zone) => (
@@ -1201,7 +1230,17 @@ function syncCounts(publicState: PublicPlayerState, privateState: PrivatePlayerS
   };
 }
 
-function toPublicCard(card: CardInstance): PublicCard {
+function toPublicCard(card: CardInstance, options?: { faceDown?: boolean }): PublicCard {
+  if (options?.faceDown) {
+    return {
+      uid: card.uid,
+      id: `face-down-${card.uid}`,
+      name: "裏向きカード",
+      imageUrl: CARD_BACK_URL,
+      faceDown: true,
+    };
+  }
+
   return {
     uid: card.uid,
     id: card.id,
@@ -1225,6 +1264,10 @@ function isPokemonCard(card: CardInstance | PublicCard) {
 
 function isPokemonToolCard(card: CardInstance | PublicCard) {
   return card.role === "pokemonTool";
+}
+
+function publicCardForMove(card: PublicCard, privateFaceDownCard?: CardInstance) {
+  return privateFaceDownCard ? toPublicCard(privateFaceDownCard) : card;
 }
 
 function removeFromPrivateZones(state: PrivatePlayerState, uid: string): PrivatePlayerState {
@@ -1284,7 +1327,7 @@ function atomicMoveSelectedCard({
   playerId,
 }: {
   selected: SelectedCard;
-  to: AnyZone;
+  to: MoveDestination;
   privateState: PrivatePlayerState;
   publicRoom: PublicRoomState;
   playerId: PlayerId;
@@ -1292,8 +1335,12 @@ function atomicMoveSelectedCard({
   const sourceCard = selected.sourceCard ?? selected.card;
   const uid = sourceCard.uid;
   const from = selected.zone;
+  const toZone: AnyZone = to === "activeFaceDown" ? "active" : to;
   const currentPublic = publicRoom.playerStates[playerId];
   const attachedToMovedCard = currentPublic.attachedCards?.[uid] || [];
+  const faceDownPrivateCard = !selected.privateCard && (sourceCard as PublicCard).faceDown
+    ? privateState.faceDownPublicCards?.[uid]
+    : undefined;
   const existsInSource = selected.privateCard
     ? isPrivateZone(from) && privateState[from].some((card) => card.uid === uid)
     : !isPrivateZone(from) && currentPublic[from].some((card) => card.uid === uid);
@@ -1302,30 +1349,45 @@ function atomicMoveSelectedCard({
 
   let nextPrivate = removeFromPrivateZones(privateState, uid);
   let nextPublic = removeFromPublicZones(currentPublic, uid);
+  const faceDownPublicCards = { ...(nextPrivate.faceDownPublicCards || {}) };
+  if (!selected.privateCard && faceDownPrivateCard) {
+    delete faceDownPublicCards[uid];
+  }
+  nextPrivate = { ...nextPrivate, faceDownPublicCards };
   const damageCounters = { ...nextPublic.damageCounters };
-  if (isPrivateZone(to) || to === "discard" || to === "lostZone" || to === "stadium") {
+  if (isPrivateZone(toZone) || toZone === "discard" || toZone === "lostZone" || toZone === "stadium") {
     delete damageCounters[uid];
   }
   nextPublic = { ...nextPublic, damageCounters };
 
-  if (!selected.privateCard && attachedToMovedCard.length > 0 && to === "discard") {
+  if (to === "activeFaceDown" && selected.privateCard) {
+    const privateCard = sourceCard as CardInstance;
+    nextPrivate = {
+      ...nextPrivate,
+      faceDownPublicCards: {
+        ...(nextPrivate.faceDownPublicCards || {}),
+        [uid]: privateCard,
+      },
+    };
+    nextPublic = addToPublicZone(nextPublic, "active", toPublicCard(privateCard, { faceDown: true }));
+  } else if (!selected.privateCard && attachedToMovedCard.length > 0 && toZone === "discard") {
     nextPublic = {
       ...nextPublic,
-      discard: [sourceCard as PublicCard, ...attachedToMovedCard, ...nextPublic.discard],
+      discard: [publicCardForMove(sourceCard as PublicCard, faceDownPrivateCard), ...attachedToMovedCard, ...nextPublic.discard],
     };
-  } else if (!selected.privateCard && attachedToMovedCard.length > 0 && to === "lostZone") {
+  } else if (!selected.privateCard && attachedToMovedCard.length > 0 && toZone === "lostZone") {
     nextPublic = {
       ...nextPublic,
-      lostZone: [sourceCard as PublicCard, ...attachedToMovedCard, ...nextPublic.lostZone],
+      lostZone: [publicCardForMove(sourceCard as PublicCard, faceDownPrivateCard), ...attachedToMovedCard, ...nextPublic.lostZone],
     };
-  } else if (!selected.privateCard && attachedToMovedCard.length > 0 && isPrivateZone(to)) {
-    nextPrivate = addToPrivateZone(nextPrivate, to, publicToPrivate(sourceCard as PublicCard));
+  } else if (!selected.privateCard && attachedToMovedCard.length > 0 && isPrivateZone(toZone)) {
+    nextPrivate = addToPrivateZone(nextPrivate, toZone, faceDownPrivateCard || publicToPrivate(sourceCard as PublicCard));
     nextPublic = {
       ...nextPublic,
       discard: [...attachedToMovedCard, ...nextPublic.discard],
     };
-  } else if (!selected.privateCard && attachedToMovedCard.length > 0 && (to === "active" || to === "bench")) {
-    nextPublic = addToPublicZone(nextPublic, to, sourceCard as PublicCard);
+  } else if (!selected.privateCard && attachedToMovedCard.length > 0 && (toZone === "active" || toZone === "bench")) {
+    nextPublic = addToPublicZone(nextPublic, toZone, publicCardForMove(sourceCard as PublicCard, faceDownPrivateCard));
     nextPublic = {
       ...nextPublic,
       attachedCards: {
@@ -1334,17 +1396,19 @@ function atomicMoveSelectedCard({
       },
     };
   } else if (!selected.privateCard && attachedToMovedCard.length > 0) {
-    nextPublic = addToPublicZone(nextPublic, to as PublicZone, sourceCard as PublicCard);
+    nextPublic = addToPublicZone(nextPublic, toZone as PublicZone, publicCardForMove(sourceCard as PublicCard, faceDownPrivateCard));
     nextPublic = {
       ...nextPublic,
       discard: [...attachedToMovedCard, ...nextPublic.discard],
     };
-  } else if (isPrivateZone(to)) {
-    const privateCard = selected.privateCard ? (sourceCard as CardInstance) : publicToPrivate(sourceCard as PublicCard);
-    nextPrivate = addToPrivateZone(nextPrivate, to, privateCard);
+  } else if (isPrivateZone(toZone)) {
+    const privateCard = selected.privateCard ? (sourceCard as CardInstance) : faceDownPrivateCard || publicToPrivate(sourceCard as PublicCard);
+    nextPrivate = addToPrivateZone(nextPrivate, toZone, privateCard);
   } else {
-    const publicCard = selected.privateCard ? toPublicCard(sourceCard as CardInstance) : (sourceCard as PublicCard);
-    nextPublic = addToPublicZone(nextPublic, to, publicCard);
+    const publicCard = selected.privateCard
+      ? toPublicCard(sourceCard as CardInstance)
+      : publicCardForMove(sourceCard as PublicCard, faceDownPrivateCard);
+    nextPublic = addToPublicZone(nextPublic, toZone, publicCard);
   }
 
   nextPublic = syncCounts(nextPublic, nextPrivate);
@@ -1411,7 +1475,14 @@ function atomicAttachSelectedCard({
 
 function loadPrivate(roomId: string, playerId: PlayerId) {
   const saved = localStorage.getItem(privateStorageKey(roomId, playerId));
-  return saved ? (JSON.parse(saved) as PrivatePlayerState) : emptyPrivate();
+  if (!saved) return emptyPrivate();
+  const parsed = JSON.parse(saved) as Partial<PrivatePlayerState>;
+  return {
+    deck: Array.isArray(parsed.deck) ? parsed.deck : [],
+    hand: Array.isArray(parsed.hand) ? parsed.hand : [],
+    prizes: Array.isArray(parsed.prizes) ? parsed.prizes : [],
+    faceDownPublicCards: parsed.faceDownPublicCards || {},
+  };
 }
 
 function privateStorageKey(roomId: string, playerId: PlayerId) {
