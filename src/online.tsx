@@ -543,6 +543,28 @@ function OnlineBattleApp() {
     setDeckPeekOpen(false);
   }
 
+  async function resetRoomState() {
+    if (!publicRoom || !roomId) return;
+    const nextRoom: PublicRoomState = {
+      ...publicRoom,
+      turnPlayer: "A",
+      coinFlip: undefined,
+      updatedAt: Date.now(),
+      playerStates: {
+        A: emptyPublicPlayer(),
+        B: emptyPublicPlayer(),
+      },
+    };
+    localStorage.removeItem(privateStorageKey(roomId, "A"));
+    localStorage.removeItem(privateStorageKey(roomId, "B"));
+    setDeckPeekOpen(false);
+    setListViewer(null);
+    setSelected(null);
+    setPrivateState(emptyPrivate());
+    await publish(nextRoom);
+    setMessage("プレイヤーA/Bの状態をリセットしました。");
+  }
+
   const listCards = listViewer && publicRoom ? publicRoom.playerStates[listViewer.playerId][listViewer.zone] : [];
   const hasRevealableBench = myPublic.bench.some((card) => card.faceDown && privateState.faceDownPublicCards[card.uid]);
 
@@ -672,6 +694,10 @@ function OnlineBattleApp() {
               <RotateCcw />
               自分の非公開情報リセット
             </button>
+            <button onClick={resetRoomState} disabled={!publicRoom}>
+              <RotateCcw />
+              リセット
+            </button>
           </section>
 
           <div className="players-grid fixed-seats">
@@ -688,6 +714,7 @@ function OnlineBattleApp() {
                   onDeckDraw={isMine ? () => draw(1) : undefined}
                   onDeckPeek={isMine ? () => setDeckPeekOpen(true) : undefined}
                   onPrizeDraw={isMine ? drawPrize : undefined}
+                  onReturnHandToDeck={isMine ? returnHandToDeck : undefined}
                   onSelect={setSelected}
                   onOpenList={setListViewer}
                   onToggleStatus={isMine ? toggleStatus : undefined}
@@ -756,6 +783,7 @@ function PlayerBoard({
   onDeckDraw,
   onDeckPeek,
   onPrizeDraw,
+  onReturnHandToDeck,
   onSelect,
   onOpenList,
   onToggleStatus,
@@ -768,6 +796,7 @@ function PlayerBoard({
   onDeckDraw?: () => void;
   onDeckPeek?: () => void;
   onPrizeDraw?: () => void;
+  onReturnHandToDeck?: () => void;
   onSelect: (selected: SelectedCard) => void;
   onOpenList: (viewer: Exclude<ListViewer, null>) => void;
   onToggleStatus?: (key: keyof PublicPlayerState["status"]) => void;
@@ -856,6 +885,7 @@ function PlayerBoard({
           playerId={playerId}
           zone="hand"
           className="zone-hand"
+          action={isMine && publicState.handCount > 0 ? { label: "手札を山札へ", onClick: onReturnHandToDeck } : undefined}
           onSelect={onSelect}
         />
         <PublicZoneView
