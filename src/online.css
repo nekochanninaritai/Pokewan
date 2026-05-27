@@ -1587,3 +1587,261 @@ label span {
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 720px) {
+  body:has(.solo-app) {
+    background: #f7faf8;
+    min-width: 0;
+    overflow-x: hidden;
+  }
+
+  .solo-app {
+    gap: 8px;
+    margin: 0 auto;
+    max-width: 430px;
+    min-height: 100svh;
+    padding: 10px;
+    width: 100%;
+  }
+
+  .solo-app .online-topbar {
+    flex-direction: row;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .solo-app .online-topbar > div:first-child {
+    min-width: 0;
+  }
+
+  .solo-app .eyebrow {
+    white-space: nowrap;
+  }
+
+  .solo-app h1 {
+    font-size: clamp(1.8rem, 9vw, 2.45rem);
+    letter-spacing: 0;
+    line-height: 1.05;
+    white-space: nowrap;
+  }
+
+  .solo-info-bar {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .solo-info-bar span {
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  .solo-app .message {
+    order: 6;
+  }
+
+  .solo-app .deck-loader {
+    order: 5;
+  }
+
+  .solo-app .player-board {
+    order: 2;
+  }
+
+  .solo-app .board-layout {
+    align-items: stretch;
+    display: grid;
+    gap: 8px;
+    grid-template-areas:
+      "stadium active deck"
+      "prizes active discard"
+      "bench bench bench"
+      "hand hand lost";
+    grid-template-columns: 0.9fr 1.8fr 0.9fr;
+    grid-template-rows: 106px 106px 86px 104px;
+    min-width: 0;
+  }
+
+  .solo-app .zone {
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .solo-app .zone header {
+    flex: 0 0 auto;
+    min-height: 30px;
+    padding: 6px 8px;
+  }
+
+  .solo-app .zone h3 {
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  .solo-app .zone-tools {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    min-width: max-content;
+  }
+
+  .solo-app .zone-tools span {
+    white-space: nowrap;
+  }
+
+  .solo-app .card-grid,
+  .solo-app .prize-grid {
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+  }
+
+  .solo-app .card-image-wrap {
+    aspect-ratio: 63 / 88;
+    width: 100%;
+  }
+
+  .solo-app .card-image-wrap img,
+  .solo-app .card-tile > img,
+  .solo-app .deck-stack-card,
+  .solo-app .evolution-underlay img {
+    height: auto;
+    max-height: 100%;
+    max-width: 100%;
+    object-fit: contain;
+    width: 100%;
+  }
+
+  .solo-app .card-tile span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    width: 100%;
+  }
+
+  .solo-app .zone-active .card-grid {
+    align-items: center;
+    display: flex;
+    justify-content: center;
+    overflow: visible;
+    padding: 8px;
+  }
+
+  .solo-app .zone-active .battle-card-stack,
+  .solo-app .zone-active .card-tile {
+    max-width: min(138px, 100%);
+    width: clamp(112px, 32vw, 138px);
+  }
+
+  .solo-app .zone-active .battle-card-stack {
+    transform-origin: center top;
+  }
+
+  .solo-app .zone-bench .card-grid {
+    align-items: start;
+    display: grid;
+    gap: 6px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    overflow: hidden;
+    padding: 8px;
+  }
+
+  .solo-app .zone-bench .battle-card-stack,
+  .solo-app .zone-bench .card-tile {
+    justify-self: center;
+    max-width: 54px;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .solo-app .zone-hand .card-grid {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 8px;
+    scrollbar-width: thin;
+  }
+
+  .solo-app .zone-hand .card-tile {
+    flex: 0 0 54px;
+    width: 54px;
+  }
+
+  .solo-app .zone-stadium .card-grid,
+  .solo-app .zone-discard .card-grid,
+  .solo-app .zone-lostZone .card-grid {
+    align-items: center;
+    display: flex;
+    justify-content: center;
+    overflow: hidden;
+    padding: 8px;
+  }
+
+  .solo-app .zone-stadium .card-tile,
+  .solo-app .zone-discard .card-tile,
+  .solo-app .zone-lostZone .card-tile {
+    max-width: 62px;
+    width: 100%;
+  }
+
+  .solo-app .zone-prizes .prize-grid {
+    align-items: center;
+    display: grid;
+    gap: 5px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: hidden;
+    padding: 8px;
+  }
+
+  .solo-app .zone-prizes .card-tile {
+    max-width: 48px;
+    width: 100%;
+  }
+
+  .solo-app .zone-deck .deck-stack-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 8px 4px;
+  }
+
+  .solo-app .zone-deck .deck-stack {
+    height: 82px;
+    width: 62px;
+  }
+
+  .solo-app .zone-deck .deck-stack-card {
+    width: 48px;
+  }
+
+  .solo-app .zone-lostZone {
+    min-height: 0;
+  }
+
+  .solo-app .quick-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    order: 3;
+  }
+
+  .solo-app .quick-control-group > span,
+  .solo-app .quick-control-group:nth-child(3),
+  .solo-app .quick-control-group:first-child button:first-of-type,
+  .solo-app .quick-control-group:nth-child(2) button:first-of-type {
+    display: none;
+  }
+
+  .solo-app .quick-controls button,
+  .solo-status-panel .status,
+  .solo-header-actions button {
+    white-space: nowrap;
+  }
+
+  .solo-app .quick-controls button {
+    min-height: 46px;
+  }
+
+  .solo-status-panel {
+    order: 4;
+  }
+}
