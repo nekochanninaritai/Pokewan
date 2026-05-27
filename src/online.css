@@ -519,8 +519,81 @@ label span {
   max-width: 132px;
 }
 
-.battle-card-stack > .card-tile {
+.battle-card-stack > .card-tile,
+.evolution-stack > .card-tile {
   width: 100%;
+}
+
+.evolution-stack {
+  isolation: isolate;
+  position: relative;
+  width: 100%;
+}
+
+.evolution-stack.has-evolution {
+  padding: 0 8px 8px 0;
+}
+
+.evolution-underlay {
+  aspect-ratio: 63 / 88;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  box-shadow: none;
+  cursor: pointer;
+  left: var(--evolution-offset);
+  min-height: 0;
+  padding: 0;
+  position: absolute;
+  top: var(--evolution-offset);
+  transform: rotate(1.5deg);
+  width: calc(100% - var(--evolution-offset));
+  z-index: 0;
+}
+
+.evolution-underlay img {
+  aspect-ratio: 63 / 88;
+  border-radius: 7px;
+  box-shadow: 3px 4px 8px rgba(0, 0, 0, 0.24);
+  display: block;
+  height: auto;
+  object-fit: cover;
+  width: 100%;
+}
+
+.evolution-stack > .card-tile {
+  position: relative;
+  z-index: 2;
+}
+
+.evolution-history {
+  align-items: center;
+  color: #52625e;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.65rem;
+  font-weight: 800;
+  gap: 4px;
+}
+
+.evolution-history-card,
+.attached-card-button {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  cursor: pointer;
+  min-height: 0;
+  padding: 0;
+}
+
+.evolution-history-card img {
+  aspect-ratio: 63 / 88;
+  border: 1px solid #cfd8d3;
+  border-radius: 2px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.16);
+  display: block;
+  object-fit: cover;
+  width: 24px;
 }
 
 .attached-cards {
