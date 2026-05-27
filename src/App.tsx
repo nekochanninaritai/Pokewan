@@ -4,6 +4,7 @@ import {
   Eye,
   Hand,
   Layers,
+  Menu,
   RotateCcw,
   Shuffle,
   Sparkles,
@@ -104,9 +105,18 @@ const emptyBoard = (): BoardState => ({
 type SavedSoloState = {
   privateState: PrivateState;
   boardState: BoardState;
+  status: Record<string, boolean>;
   deckCode: string;
   deckHtml: string;
   deckSummary: string;
+};
+
+const STATUS_LABELS = {
+  poison: "どく",
+  burn: "やけど",
+  sleep: "ねむり",
+  paralysis: "マヒ",
+  confusion: "こんらん",
 };
 
 export function App() {
@@ -122,6 +132,13 @@ export function App() {
   const [message, setMessage] = useState("");
   const [isMoving, setIsMoving] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const [status, setStatus] = useState<Record<string, boolean>>({
+    poison: false,
+    burn: false,
+    sleep: false,
+    paralysis: false,
+    confusion: false,
+  });
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -136,6 +153,7 @@ export function App() {
       setDeckCode(parsed.deckCode || "");
       setDeckHtml(parsed.deckHtml || "");
       setDeckSummary(parsed.deckSummary || "保存された盤面を読み込みました。");
+      setStatus({ ...status, ...(parsed.status || {}) });
     } catch {
       localStorage.removeItem(STORAGE_KEY);
     } finally {
@@ -148,12 +166,13 @@ export function App() {
     const saved: SavedSoloState = {
       privateState,
       boardState,
+      status,
       deckCode,
       deckHtml,
       deckSummary,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
-  }, [privateState, boardState, deckCode, deckHtml, deckSummary, hydrated]);
+  }, [privateState, boardState, status, deckCode, deckHtml, deckSummary, hydrated]);
 
   const listCards = listViewer ? boardState[listViewer] : [];
   const hasRevealableBench = boardState.bench.some((card) => card.faceDown && privateState.faceDownPublicCards[card.uid]);
@@ -339,6 +358,7 @@ export function App() {
     localStorage.removeItem(STORAGE_KEY);
     setPrivateState(emptyPrivate());
     setBoardState(emptyBoard());
+    setStatus({ poison: false, burn: false, sleep: false, paralysis: false, confusion: false });
     setSelected(null);
     setDeckPeekOpen(false);
     setListViewer(null);
@@ -346,14 +366,30 @@ export function App() {
   }
 
   return (
-    <div className="online-app">
+    <div className="online-app solo-app">
       <header className="online-topbar">
         <div>
           <p className="eyebrow">Pokewan Solo Practice</p>
           <h1>一人回し</h1>
         </div>
-        <a href="./online.html" className="home-link">二人対戦へ</a>
+        <div className="solo-header-actions">
+          <button type="button" aria-label="メニュー">
+            <Menu />
+            <span>メニュー</span>
+          </button>
+          <button type="button" onClick={resetAll}>
+            <RotateCcw />
+            <span>リセット</span>
+          </button>
+        </div>
       </header>
+
+      <section className="solo-info-bar" aria-label="カード枚数">
+        <span><Hand />手札 <strong>{boardState.handCount}枚</strong></span>
+        <span><Sparkles />サイド <strong>{boardState.prizeCount}枚</strong></span>
+        <span><Layers />山札 <strong>{boardState.deckCount}枚</strong></span>
+        <span><Trash2 />トラッシュ <strong>{boardState.discard.length}枚</strong></span>
+      </section>
 
       <section className="deck-loader">
         <div>
@@ -431,6 +467,23 @@ export function App() {
             リセット
           </button>
         </div>
+      </section>
+
+      <section className="solo-status-panel">
+        <h2>バトル場に出す</h2>
+        <button className={status.poison ? "status active" : "status"} onClick={() => setStatus((current) => ({ ...current, poison: !current.poison }))}>
+          {STATUS_LABELS.poison}
+        </button>
+        <div>
+          {(["burn", "sleep", "paralysis"] as const).map((key) => (
+            <button key={key} className={status[key] ? "status active" : "status"} onClick={() => setStatus((current) => ({ ...current, [key]: !current[key] }))}>
+              {STATUS_LABELS[key]}
+            </button>
+          ))}
+        </div>
+        <button className={status.confusion ? "status active" : "status"} onClick={() => setStatus((current) => ({ ...current, confusion: !current.confusion }))}>
+          {STATUS_LABELS.confusion}
+        </button>
       </section>
 
       {message && <p className="message">{message}</p>}

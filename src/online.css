@@ -6,6 +6,340 @@
   color: #17211f;
 }
 
+@media (max-width: 720px) {
+  body:has(.solo-app) {
+    background: #f7faf8;
+    overflow-x: hidden;
+  }
+
+  .solo-app {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 100svh;
+    padding: 12px;
+  }
+
+  .solo-app .online-topbar {
+    align-items: center;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    margin-bottom: 0;
+  }
+
+  .solo-app .eyebrow {
+    color: #6f6b31;
+    font-size: 0.68rem;
+  }
+
+  .solo-app h1 {
+    font-size: 1.65rem;
+  }
+
+  .solo-header-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .solo-header-actions button {
+    align-items: center;
+    background: #ffffff;
+    border: 1px solid #e0e7e3;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(33, 44, 40, 0.06);
+    color: #15211e;
+    display: flex;
+    flex-direction: column;
+    font-size: 0.64rem;
+    font-weight: 900;
+    gap: 2px;
+    min-height: 54px;
+    min-width: 54px;
+    padding: 7px;
+  }
+
+  .solo-header-actions svg {
+    height: 22px;
+    width: 22px;
+  }
+
+  .solo-info-bar {
+    display: grid;
+    gap: 6px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    order: 1;
+  }
+
+  .solo-info-bar span {
+    align-items: center;
+    background: #ffffff;
+    border: 1px solid #e0e7e3;
+    border-radius: 9px;
+    color: #283631;
+    display: flex;
+    flex-direction: column;
+    font-size: 0.62rem;
+    font-weight: 900;
+    gap: 1px;
+    min-height: 52px;
+    padding: 7px 3px;
+  }
+
+  .solo-info-bar svg {
+    color: #15211e;
+    height: 18px;
+    width: 18px;
+  }
+
+  .solo-info-bar strong {
+    color: #0f1d1a;
+    font-size: 0.88rem;
+  }
+
+  .solo-app .deck-loader {
+    order: 5;
+  }
+
+  .solo-app .player-board {
+    background: transparent;
+    border: 0;
+    margin: 0;
+    order: 2;
+    padding: 0;
+  }
+
+  .solo-app .player-board > header {
+    display: none;
+  }
+
+  .solo-app .board-layout {
+    display: grid;
+    gap: 5px;
+    grid-template-areas:
+      "stadium active deck"
+      "prizes bench discard"
+      "hand hand hand";
+    grid-template-columns: 20% minmax(0, 1fr) 20%;
+    grid-template-rows: minmax(118px, 24vh) minmax(58px, 10vh) minmax(86px, 14vh);
+  }
+
+  .solo-app .zone {
+    border-radius: 10px;
+    margin: 0;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0;
+  }
+
+  .solo-app .zone header {
+    background: #fbfdfc;
+    min-height: 28px;
+    padding: 6px 8px;
+  }
+
+  .solo-app .zone h3 {
+    font-size: 0.72rem;
+    gap: 4px;
+  }
+
+  .solo-app .zone h3 svg {
+    height: 15px;
+    width: 15px;
+  }
+
+  .solo-app .zone-tools span {
+    font-size: 0.72rem;
+    min-width: 26px;
+    padding: 2px 5px;
+  }
+
+  .solo-app .mini-action {
+    display: none;
+  }
+
+  .solo-app .zone-active,
+  .solo-app .zone-bench,
+  .solo-app .zone-hand,
+  .solo-app .zone-stadium,
+  .solo-app .zone-prizes,
+  .solo-app .zone-deck,
+  .solo-app .zone-discard,
+  .solo-app .zone-lostZone {
+    min-height: 0;
+  }
+
+  .solo-app .zone-active .card-grid {
+    align-items: center;
+    height: calc(100% - 28px);
+    justify-content: center;
+    padding: 8px;
+  }
+
+  .solo-app .zone-active .battle-card-stack,
+  .solo-app .zone-active .card-tile {
+    max-width: 132px;
+    width: clamp(104px, 28vw, 132px);
+  }
+
+  .solo-app .zone-bench .card-grid {
+    display: grid;
+    gap: 5px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    max-height: none;
+    padding: 6px 8px;
+  }
+
+  .solo-app .zone-bench .battle-card-stack,
+  .solo-app .zone-bench .card-tile {
+    max-width: none;
+    width: 100%;
+  }
+
+  .solo-app .zone-hand .card-grid {
+    display: flex;
+    gap: 6px;
+    max-height: none;
+    overflow-x: auto;
+    padding: 7px 10px;
+  }
+
+  .solo-app .zone-hand .card-tile {
+    flex: 0 0 48px;
+    width: 48px;
+  }
+
+  .solo-app .zone-stadium .card-grid,
+  .solo-app .zone-discard .card-grid,
+  .solo-app .zone-lostZone .card-grid {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 8px;
+  }
+
+  .solo-app .zone-stadium .card-tile,
+  .solo-app .zone-discard .card-tile,
+  .solo-app .zone-lostZone .card-tile {
+    width: 100%;
+  }
+
+  .solo-app .zone-prizes .prize-grid {
+    grid-template-columns: 1fr;
+    max-height: none;
+    padding: 8px;
+  }
+
+  .solo-app .zone-prizes .card-tile {
+    width: 100%;
+  }
+
+  .solo-app .deck-stack-wrap {
+    min-height: 0;
+    padding: 8px 4px;
+  }
+
+  .solo-app .deck-stack {
+    height: 78px;
+    width: 58px;
+  }
+
+  .solo-app .deck-stack-card {
+    width: 46px;
+  }
+
+  .solo-app .deck-stack-card:nth-child(2) {
+    left: 7px;
+    top: 6px;
+  }
+
+  .solo-app .deck-stack-card:nth-child(3) {
+    left: 14px;
+    top: 12px;
+  }
+
+  .solo-app .deck-stack-count {
+    font-size: 0.8rem;
+  }
+
+  .solo-app .card-tile span {
+    font-size: 0.58rem;
+  }
+
+  .solo-app .quick-controls {
+    background: transparent;
+    border: 0;
+    display: grid;
+    gap: 6px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 0;
+    order: 3;
+    padding: 0;
+  }
+
+  .solo-app .quick-control-group {
+    background: transparent;
+    border: 0;
+    display: contents;
+    padding: 0;
+  }
+
+  .solo-app .quick-control-group > span,
+  .solo-app .quick-control-group button:first-of-type,
+  .solo-app .quick-control-group:nth-child(3) {
+    display: none;
+  }
+
+  .solo-app .quick-controls button {
+    border-radius: 9px;
+    font-size: 0.82rem;
+    min-height: 42px;
+    width: 100%;
+  }
+
+  .solo-app .quick-control-group:nth-child(2) button:first-of-type {
+    background: #2e8a6d;
+    border-color: #2e8a6d;
+    color: #ffffff;
+  }
+
+  .solo-status-panel {
+    background: #ffffff;
+    border: 1px solid #dce3df;
+    border-radius: 10px;
+    display: grid;
+    gap: 7px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    order: 4;
+    padding: 10px;
+  }
+
+  .solo-status-panel h2 {
+    font-size: 0.92rem;
+    grid-column: 1 / -1;
+    margin: 0;
+  }
+
+  .solo-status-panel > button:first-of-type,
+  .solo-status-panel > button:last-of-type {
+    grid-column: 1 / -1;
+  }
+
+  .solo-status-panel div {
+    display: grid;
+    gap: 7px;
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .solo-status-panel .status {
+    min-height: 39px;
+    width: 100%;
+  }
+
+  .solo-app .deck-loader {
+    margin-top: 2px;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
