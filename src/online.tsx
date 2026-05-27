@@ -40,6 +40,7 @@ type TargetCandidate = {
   index: number;
   label: string;
   attachedCards: PublicCard[];
+  attachedDisplayCards: PublicCard[];
 };
 
 type PublicCard = Pick<CardInstance, "uid" | "id" | "name" | "imageUrl" | "category" | "role"> & {
@@ -1344,9 +1345,9 @@ function TargetCandidateGroup({
               <em>付いているカード {candidate.attachedCards.length}枚</em>
             </span>
             <small>個体ID: {shortUid(candidate.card.uid)}</small>
-            {candidate.attachedCards.length > 0 && (
+            {candidate.attachedDisplayCards.length > 0 && (
               <span className="target-candidate-attached">
-                {candidate.attachedCards.map((attached) => (
+                {candidate.attachedDisplayCards.map((attached) => (
                   <img
                     key={attached.uid}
                     src={attached.faceDown ? CARD_BACK_URL : attached.imageUrl}
@@ -1470,30 +1471,41 @@ function addToPublicZone(state: PublicPlayerState, zone: PublicZone, card: Publi
 function buildTargetCandidates(publicState: PublicPlayerState, selectedUid: string): TargetCandidate[] {
   const activeCandidates = publicState.active
     .filter((card) => card.uid !== selectedUid)
-    .map((card) => ({
-      card,
-      displayCard: topDisplayCard(card, publicState.attachedCards[card.uid] || []),
-      zone: "active" as const,
-      index: 0,
-      label: "バトル場",
-      attachedCards: publicState.attachedCards[card.uid] || [],
-    }));
+    .map((card) => buildTargetCandidate(card, publicState.attachedCards[card.uid] || [], "active", 0, "バトル場"));
   const benchCandidates = publicState.bench
     .filter((card) => card.uid !== selectedUid)
-    .map((card, index) => ({
-      card,
-      displayCard: topDisplayCard(card, publicState.attachedCards[card.uid] || []),
-      zone: "bench" as const,
-      index,
-      label: `ベンチ${index + 1}`,
-      attachedCards: publicState.attachedCards[card.uid] || [],
-    }));
+    .map((card, index) => buildTargetCandidate(card, publicState.attachedCards[card.uid] || [], "bench", index, `ベンチ${index + 1}`));
   return [...activeCandidates, ...benchCandidates];
+}
+
+function buildTargetCandidate(
+  card: PublicCard,
+  attachedCards: PublicCard[],
+  zone: "active" | "bench",
+  index: number,
+  label: string,
+): TargetCandidate {
+  return {
+    card,
+    displayCard: topDisplayCard(card, attachedCards),
+    zone,
+    index,
+    label,
+    attachedCards,
+    attachedDisplayCards: targetAttachedDisplayCards(card, attachedCards),
+  };
 }
 
 function topDisplayCard(card: PublicCard, attachedCards: PublicCard[]) {
   const evolutionCards = attachedCards.filter(isPokemonCard);
   return evolutionCards[evolutionCards.length - 1] || card;
+}
+
+function targetAttachedDisplayCards(card: PublicCard, attachedCards: PublicCard[]) {
+  const evolutionCards = attachedCards.filter(isPokemonCard);
+  const evolutionSources = evolutionCards.length > 0 ? [card, ...evolutionCards.slice(0, -1)] : [];
+  const supportCards = attachedCards.filter((attached) => !isPokemonCard(attached));
+  return [...evolutionSources, ...supportCards];
 }
 
 function shortUid(uid: string) {
