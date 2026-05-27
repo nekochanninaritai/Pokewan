@@ -35,6 +35,7 @@ type CoinResult = "heads" | "tails";
 type ListViewer = { playerId: PlayerId; zone: "discard" | "lostZone" } | null;
 type TargetCandidate = {
   card: PublicCard;
+  displayCard: PublicCard;
   zone: "active" | "bench";
   index: number;
   label: string;
@@ -1302,12 +1303,12 @@ function TargetCandidateGroup({
         >
           <img
             className="target-candidate-thumb"
-            src={candidate.card.faceDown ? CARD_BACK_URL : candidate.card.imageUrl}
-            alt={candidate.card.faceDown ? "裏向きカード" : candidate.card.name}
+            src={candidate.displayCard.faceDown ? CARD_BACK_URL : candidate.displayCard.imageUrl}
+            alt={candidate.displayCard.faceDown ? "裏向きカード" : candidate.displayCard.name}
             loading="lazy"
           />
           <span className="target-candidate-meta">
-            <strong>{candidate.card.faceDown ? "裏向きカード" : candidate.card.name}</strong>
+            <strong>{candidate.displayCard.faceDown ? "裏向きカード" : candidate.displayCard.name}</strong>
             <span>
               <b>{candidate.label}</b>
               <em>付いているカード {candidate.attachedCards.length}枚</em>
@@ -1327,7 +1328,7 @@ function TargetCandidateGroup({
               </span>
             )}
             <span className="target-candidate-action">
-              {candidate.label}の{candidate.card.faceDown ? "裏向きカード" : candidate.card.name}に{action === "進化" ? "進化する" : "付ける"}
+              {candidate.label}の{candidate.displayCard.faceDown ? "裏向きカード" : candidate.displayCard.name}に{action === "進化" ? "進化する" : "付ける"}
             </span>
           </span>
         </button>
@@ -1441,6 +1442,7 @@ function buildTargetCandidates(publicState: PublicPlayerState, selectedUid: stri
     .filter((card) => card.uid !== selectedUid)
     .map((card) => ({
       card,
+      displayCard: topDisplayCard(card, publicState.attachedCards[card.uid] || []),
       zone: "active" as const,
       index: 0,
       label: "バトル場",
@@ -1450,12 +1452,18 @@ function buildTargetCandidates(publicState: PublicPlayerState, selectedUid: stri
     .filter((card) => card.uid !== selectedUid)
     .map((card, index) => ({
       card,
+      displayCard: topDisplayCard(card, publicState.attachedCards[card.uid] || []),
       zone: "bench" as const,
       index,
       label: `ベンチ${index + 1}`,
       attachedCards: publicState.attachedCards[card.uid] || [],
     }));
   return [...activeCandidates, ...benchCandidates];
+}
+
+function topDisplayCard(card: PublicCard, attachedCards: PublicCard[]) {
+  const evolutionCards = attachedCards.filter(isPokemonCard);
+  return evolutionCards[evolutionCards.length - 1] || card;
 }
 
 function shortUid(uid: string) {
