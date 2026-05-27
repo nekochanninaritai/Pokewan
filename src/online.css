@@ -355,6 +355,25 @@ label span {
   min-height: 360px;
 }
 
+.zone-active .card-grid {
+  align-items: flex-start;
+  display: flex;
+  justify-content: center;
+}
+
+.zone-active .battle-card-stack,
+.zone-active .card-tile {
+  flex: 0 0 auto;
+  max-width: 220px;
+  width: clamp(180px, 18vw, 220px);
+}
+
+.zone-active .card-image-wrap img {
+  height: auto;
+  object-fit: contain;
+  width: 100%;
+}
+
 .zone-bench,
 .zone-hand {
   min-height: 160px;
@@ -493,6 +512,34 @@ label span {
   color: #52625e;
 }
 
+.battle-card-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-width: 132px;
+}
+
+.battle-card-stack > .card-tile {
+  width: 100%;
+}
+
+.attached-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  max-width: 100%;
+}
+
+.attached-card {
+  aspect-ratio: 63 / 88;
+  background: #e2e8e4;
+  border: 1px solid #cfd8d3;
+  border-radius: 3px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.16);
+  object-fit: cover;
+  width: 28px;
+}
+
 .modal-backdrop {
   align-items: center;
   background: rgba(7, 13, 12, 0.72);
@@ -535,6 +582,19 @@ label span {
   display: grid;
   gap: 8px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.attach-grid {
+  border-bottom: 1px solid #dce3df;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-bottom: 10px;
+}
+
+.attach-grid button {
+  background: #eef7f4;
+  border-color: #9ac7ba;
 }
 
 .damage-controls {
@@ -723,6 +783,12 @@ label span {
     min-height: 210px;
   }
 
+  .zone-active .battle-card-stack,
+  .zone-active .card-tile {
+    max-width: 180px;
+    width: clamp(160px, 34vw, 180px);
+  }
+
   .zone-bench,
   .zone-hand {
     min-height: 165px;
@@ -768,6 +834,14 @@ label span {
     font-size: 0.62rem;
   }
 
+  .battle-card-stack {
+    max-width: 104px;
+  }
+
+  .attached-card {
+    width: 24px;
+  }
+
   .deck-stack-wrap {
     min-height: 120px;
     padding: 10px 6px;
@@ -809,6 +883,10 @@ label span {
 
   .move-grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .attach-grid {
+    grid-template-columns: 1fr;
   }
 
   .deck-peek-backdrop {
@@ -868,6 +946,12 @@ label span {
   .move-modal > img {
     justify-self: center;
     max-width: 230px;
+  }
+
+  .zone-active .battle-card-stack,
+  .zone-active .card-tile {
+    max-width: 160px;
+    width: clamp(130px, 42vw, 160px);
   }
 
   .move-grid {
