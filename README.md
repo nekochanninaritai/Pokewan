@@ -35,7 +35,7 @@ https://www.pokemon-card.com/deck/confirm.html/deckID/{deckCode}
 公開URLの例:
 
 ```text
-https://akineko396.github.io/Pokewan/online.html
+https://nekochanninaritai.github.io/Pokewan/online.html
 ```
 
 MVPとして次の機能があります。
