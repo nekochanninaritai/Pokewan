@@ -63,6 +63,7 @@ type PublicPlayerState = {
   revealedHand: PublicCard[];
   attachedCards: Record<string, PublicCard[]>;
   damageCounters: Record<string, number>;
+  usedMarkers: Record<string, boolean>;
   deckCount: number;
   handCount: number;
   prizeCount: number;
@@ -91,6 +92,7 @@ type PublicRoomState = {
 type SelectedCard = {
   card: CardInstance | PublicCard;
   sourceCard?: PublicCard;
+  attachedToUid?: string;
   zone: AnyZone;
   owner: PlayerId;
   privateCard: boolean;
@@ -149,6 +151,7 @@ const emptyPublicPlayer = (): PublicPlayerState => ({
   revealedHand: [],
   attachedCards: {},
   damageCounters: {},
+  usedMarkers: {},
   deckCount: 0,
   handCount: 0,
   prizeCount: 0,
@@ -187,6 +190,7 @@ function normalizePublicPlayer(value?: Partial<PublicPlayerState> | null): Publi
     revealedHand: Array.isArray(value?.revealedHand) ? value.revealedHand : [],
     attachedCards: value?.attachedCards || {},
     damageCounters: value?.damageCounters || {},
+    usedMarkers: value?.usedMarkers || {},
     deckCount: Number(value?.deckCount || 0),
     handCount: Number(value?.handCount || 0),
     prizeCount: Number(value?.prizeCount || 0),
@@ -226,6 +230,7 @@ function OnlineBattleApp() {
   const [selected, setSelected] = useState<SelectedCard | null>(null);
   const [isMoving, setIsMoving] = useState(false);
   const [deckPeekOpen, setDeckPeekOpen] = useState(false);
+  const [usedMarkerOpen, setUsedMarkerOpen] = useState(false);
   const [listViewer, setListViewer] = useState<ListViewer>(null);
   const [message, setMessage] = useState("ルームを作成、またはルームIDで参加してください。");
 
@@ -456,7 +461,42 @@ function OnlineBattleApp() {
 
   function passTurn() {
     if (!publicRoom) return;
-    publish({ ...publicRoom, turnPlayer: opponentId });
+    publish({
+      ...publicRoom,
+      turnPlayer: opponentId,
+      playerStates: {
+        ...publicRoom.playerStates,
+        [playerId]: {
+          ...publicRoom.playerStates[playerId],
+          usedMarkers: {},
+        },
+      },
+    });
+  }
+
+  async function markUsed(targetUid: string) {
+    if (!publicRoom || isMoving) return;
+    const current = publicRoom.playerStates[playerId];
+    const targetExists = [...current.active, ...current.bench].some((card) => card.uid === targetUid);
+    if (!targetExists) {
+      setMessage("カードの現在位置が変わっています。再選択してください。");
+      setUsedMarkerOpen(false);
+      return;
+    }
+    await publish({
+      ...publicRoom,
+      playerStates: {
+        ...publicRoom.playerStates,
+        [playerId]: {
+          ...current,
+          usedMarkers: {
+            ...(current.usedMarkers || {}),
+            [targetUid]: true,
+          },
+        },
+      },
+    });
+    setUsedMarkerOpen(false);
   }
 
   function flipCoin() {
@@ -739,6 +779,10 @@ function OnlineBattleApp() {
                 <Eye />
                 自分だけ山札確認
               </button>
+              <button onClick={() => setUsedMarkerOpen(true)} disabled={myPublic.active.length + myPublic.bench.length === 0}>
+                <Sparkles />
+                USEDマーカー
+              </button>
             </div>
             <div className="quick-control-group">
               <span>そのほか</span>
@@ -823,6 +867,14 @@ function OnlineBattleApp() {
           onMove={moveSelected}
         />
       )}
+
+      {usedMarkerOpen && (
+        <UsedMarkerDialog
+          candidates={buildTargetCandidates(myPublic, "")}
+          onClose={() => setUsedMarkerOpen(false)}
+          onMark={markUsed}
+        />
+      )}
     </div>
   );
 }
@@ -898,6 +950,7 @@ function PlayerBoard({
           owner={playerId}
           attachedCards={publicState.attachedCards}
           damageCounters={publicState.damageCounters}
+          usedMarkers={publicState.usedMarkers}
           onSelect={onSelect}
         />
         <PublicZoneView title="スタジアム" zone="stadium" cards={publicState.stadium} owner={playerId} damageCounters={publicState.damageCounters} onSelect={onSelect} />
@@ -919,6 +972,7 @@ function PlayerBoard({
           owner={playerId}
           attachedCards={publicState.attachedCards}
           damageCounters={publicState.damageCounters}
+          usedMarkers={publicState.usedMarkers}
           onSelect={onSelect}
         />
         <PublicZoneView
@@ -1059,6 +1113,7 @@ function PublicZoneView({
   owner,
   attachedCards = {},
   damageCounters,
+  usedMarkers = {},
   compactLatest = false,
   onOpenList,
   onSelect,
@@ -1069,6 +1124,7 @@ function PublicZoneView({
   owner: PlayerId;
   attachedCards?: Record<string, PublicCard[]>;
   damageCounters: Record<string, number>;
+  usedMarkers?: Record<string, boolean>;
   compactLatest?: boolean;
   onOpenList?: () => void;
   onSelect: (selected: SelectedCard) => void;
@@ -1098,8 +1154,9 @@ function PublicZoneView({
               card={card}
               attachedCards={attachedCards[card.uid] || []}
               damage={damageCounters[card.uid] || 0}
-              onSelect={(selectedCard, readOnly = false, sourceCard) =>
-                onSelect({ card: selectedCard, sourceCard, zone, owner, privateCard: false, readOnly })
+              used={Boolean(usedMarkers[card.uid])}
+              onSelect={(selectedCard, readOnly = false, sourceCard, attachedToUid) =>
+                onSelect({ card: selectedCard, sourceCard, attachedToUid, zone, owner, privateCard: false, readOnly })
               }
             />
           ) : (
@@ -1145,12 +1202,14 @@ function BattleCardStack({
   card,
   attachedCards,
   damage,
+  used,
   onSelect,
 }: {
   card: PublicCard;
   attachedCards: PublicCard[];
   damage: number;
-  onSelect: (card: PublicCard, readOnly?: boolean, sourceCard?: PublicCard) => void;
+  used?: boolean;
+  onSelect: (card: PublicCard, readOnly?: boolean, sourceCard?: PublicCard, attachedToUid?: string) => void;
 }) {
   const evolutionCards = attachedCards.filter(isPokemonCard);
   const toolCards = attachedCards.filter(isPokemonToolCard);
@@ -1179,6 +1238,7 @@ function BattleCardStack({
           damage={damage}
           onClick={() => onSelect(topCard, false, topCard.uid === card.uid ? undefined : card)}
         />
+        {used && <span className="used-marker" aria-label="USEDマーカー">USED</span>}
         {toolCards.length > 0 && (
           <div className="tool-overlays" aria-label={`${topCard.name}についているポケモンのどうぐ`}>
             {toolCards.map((tool, index) => (
@@ -1216,7 +1276,7 @@ function BattleCardStack({
               key={attached.uid}
               className="attached-card-button"
               title={attached.name}
-              onClick={() => onSelect(attached, true)}
+              onClick={() => onSelect(attached, false, undefined, card.uid)}
             >
               <img className="attached-card" src={attached.imageUrl} alt={attached.name} loading="lazy" />
             </button>
@@ -1286,7 +1346,9 @@ function MoveDialog({
 }) {
   const imageUrl = selected.card.imageUrl;
   const name = selected.card.name;
-  const destinations: AnyZone[] = ["hand", "deck", "prizes", "active", "bench", "discard", "lostZone", "stadium"];
+  const destinations: AnyZone[] = selected.attachedToUid
+    ? ["discard"]
+    : ["hand", "deck", "prizes", "active", "bench", "discard", "lostZone", "stadium"];
   const canEditDamage = canMove && !selected.privateCard && (selected.zone === "active" || selected.zone === "bench");
   const attachAction = isPokemonCard(selected.card) ? "進化" : "付ける";
   const activeCandidates = targetCandidates.filter((candidate) => candidate.zone === "active");
@@ -1423,6 +1485,82 @@ function TargetCandidateGroup({
   );
 }
 
+function UsedMarkerDialog({
+  candidates,
+  onClose,
+  onMark,
+}: {
+  candidates: TargetCandidate[];
+  onClose: () => void;
+  onMark: (targetUid: string) => void;
+}) {
+  const activeCandidates = candidates.filter((candidate) => candidate.zone === "active");
+  const benchCandidates = candidates.filter((candidate) => candidate.zone === "bench");
+
+  return (
+    <div className="modal-backdrop" onClick={onClose} role="presentation">
+      <dialog className="used-marker-modal" open onClick={(event) => event.stopPropagation()}>
+        <header>
+          <h3>USEDマーカーを置くポケモンを選択</h3>
+          <button onClick={onClose} aria-label="閉じる">×</button>
+        </header>
+        <UsedMarkerCandidateGroup title="バトル場" candidates={activeCandidates} onMark={onMark} />
+        <UsedMarkerCandidateGroup title="ベンチ" candidates={benchCandidates} onMark={onMark} />
+      </dialog>
+    </div>
+  );
+}
+
+function UsedMarkerCandidateGroup({
+  title,
+  candidates,
+  onMark,
+}: {
+  title: string;
+  candidates: TargetCandidate[];
+  onMark: (targetUid: string) => void;
+}) {
+  if (!candidates.length) return null;
+
+  return (
+    <div className="target-candidate-group">
+      <h4>{title}</h4>
+      {candidates.map((candidate) => (
+        <button key={candidate.card.uid} className="target-candidate-button" onClick={() => onMark(candidate.card.uid)}>
+          <img
+            className="target-candidate-thumb"
+            src={candidate.displayCard.faceDown ? CARD_BACK_URL : candidate.displayCard.imageUrl}
+            alt={candidate.displayCard.faceDown ? "裏向きカード" : candidate.displayCard.name}
+            loading="lazy"
+          />
+          <span className="target-candidate-meta">
+            <strong>{candidate.displayCard.faceDown ? "裏向きカード" : candidate.displayCard.name}</strong>
+            <span>
+              <b>{candidate.label}</b>
+              <em>付いているカード {candidate.attachedCards.length}枚</em>
+            </span>
+            <small>個体ID: {shortUid(candidate.card.uid)}</small>
+            {candidate.attachedDisplayCards.length > 0 && (
+              <span className="target-candidate-attached">
+                {candidate.attachedDisplayCards.map((attached) => (
+                  <img
+                    key={attached.uid}
+                    src={attached.faceDown ? CARD_BACK_URL : attached.imageUrl}
+                    alt={attached.faceDown ? "裏向きカード" : attached.name}
+                    title={attached.faceDown ? "裏向きカード" : attached.name}
+                    loading="lazy"
+                  />
+                ))}
+              </span>
+            )}
+            <span className="target-candidate-action">{candidate.label}にUSEDマーカーを置く</span>
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function zoneLabel(zone: AnyZone) {
   return isPrivateZone(zone) ? PRIVATE_ZONE_LABELS[zone] : PUBLIC_ZONE_LABELS[zone];
 }
@@ -1505,7 +1643,9 @@ function removeFromPublicZones(state: PublicPlayerState, uid: string): PublicPla
       .map(([targetUid, cards]) => [targetUid, cards.filter((card) => card.uid !== uid)])
       .filter(([, cards]) => cards.length > 0),
   );
-  return { ...withoutPublicZones, attachedCards };
+  const usedMarkers = { ...(withoutPublicZones.usedMarkers || {}) };
+  delete usedMarkers[uid];
+  return { ...withoutPublicZones, attachedCards, usedMarkers };
 }
 
 function addToPrivateZone(state: PrivatePlayerState, zone: PrivateZone, card: CardInstance): PrivatePlayerState {
@@ -1587,18 +1727,29 @@ function atomicMoveSelectedCard({
   const toZone: AnyZone =
     to === "activeFaceDown" || to === "revealActive" ? "active" : to === "benchFaceDown" ? "bench" : to;
   const currentPublic = publicRoom.playerStates[playerId];
+  const attachedSourceUid = selected.attachedToUid;
   const attachedToMovedCard = currentPublic.attachedCards?.[uid] || [];
   const faceDownPrivateCard = !selected.privateCard && (sourceCard as PublicCard).faceDown
     ? privateState.faceDownPublicCards?.[uid]
     : undefined;
-  const existsInSource = selected.privateCard
+  const existsInSource = attachedSourceUid
+    ? (currentPublic.attachedCards?.[attachedSourceUid] || []).some((card) => card.uid === uid)
+    : selected.privateCard
     ? isPrivateZone(from) && privateState[from].some((card) => card.uid === uid)
     : !isPrivateZone(from) && currentPublic[from].some((card) => card.uid === uid);
 
   if (!existsInSource) return null;
 
   let nextPrivate = removeFromPrivateZones(privateState, uid);
-  let nextPublic = removeFromPublicZones(currentPublic, uid);
+  let nextPublic = attachedSourceUid
+    ? {
+        ...currentPublic,
+        attachedCards: {
+          ...currentPublic.attachedCards,
+          [attachedSourceUid]: (currentPublic.attachedCards?.[attachedSourceUid] || []).filter((card) => card.uid !== uid),
+        },
+      }
+    : removeFromPublicZones(currentPublic, uid);
   const faceDownPublicCards = { ...(nextPrivate.faceDownPublicCards || {}) };
   if (!selected.privateCard && faceDownPrivateCard) {
     delete faceDownPublicCards[uid];
@@ -1610,7 +1761,21 @@ function atomicMoveSelectedCard({
   }
   nextPublic = { ...nextPublic, damageCounters };
 
-  if (to === "revealActive" && !selected.privateCard) {
+  if (attachedSourceUid && toZone === "discard") {
+    nextPublic = {
+      ...nextPublic,
+      discard: [sourceCard as PublicCard, ...nextPublic.discard],
+    };
+  } else if (attachedSourceUid && toZone === "lostZone") {
+    nextPublic = {
+      ...nextPublic,
+      lostZone: [sourceCard as PublicCard, ...nextPublic.lostZone],
+    };
+  } else if (attachedSourceUid && isPrivateZone(toZone)) {
+    nextPrivate = addToPrivateZone(nextPrivate, toZone, publicToPrivate(sourceCard as PublicCard));
+  } else if (attachedSourceUid) {
+    nextPublic = addToPublicZone(nextPublic, toZone as PublicZone, sourceCard as PublicCard);
+  } else if (to === "revealActive" && !selected.privateCard) {
     if (!faceDownPrivateCard) return null;
     nextPublic = addToPublicZone(nextPublic, "active", toPublicCard(faceDownPrivateCard));
     if (attachedToMovedCard.length > 0) {

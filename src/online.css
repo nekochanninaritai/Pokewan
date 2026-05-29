@@ -1021,6 +1021,71 @@ label span {
   width: 28px;
 }
 
+.used-marker {
+  align-items: center;
+  background: #ead7b8;
+  border: 1px solid #c8a87d;
+  border-radius: 2px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
+  color: #1556b7;
+  display: inline-flex;
+  font-size: 0.78rem;
+  font-weight: 900;
+  height: 24px;
+  justify-content: center;
+  letter-spacing: 0;
+  position: absolute;
+  right: 7%;
+  top: 8%;
+  transform: rotate(-2deg);
+  width: 54px;
+  z-index: 6;
+}
+
+.used-marker::after {
+  background: #1556b7;
+  border-radius: 999px;
+  bottom: 4px;
+  content: "";
+  height: 7px;
+  position: absolute;
+  right: 5px;
+  width: 7px;
+}
+
+.used-marker-modal {
+  background: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+  color: #15211e;
+  max-height: 86vh;
+  max-width: 560px;
+  overflow: auto;
+  padding: 16px;
+  width: min(560px, calc(100vw - 24px));
+}
+
+.used-marker-modal header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.used-marker-modal h3 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.used-marker-modal header button {
+  background: transparent;
+  border: 0;
+  font-size: 1.4rem;
+  min-height: 34px;
+  padding: 0 6px;
+}
+
 .modal-backdrop {
   align-items: center;
   background: rgba(7, 13, 12, 0.72);
