@@ -61,6 +61,7 @@ type PublicPlayerState = {
   lostZone: PublicCard[];
   stadium: PublicCard[];
   revealedHand: PublicCard[];
+  revealedCard?: PublicCard;
   attachedCards: Record<string, PublicCard[]>;
   damageCounters: Record<string, number>;
   usedMarkers: Record<string, boolean>;
@@ -149,6 +150,7 @@ const emptyPublicPlayer = (): PublicPlayerState => ({
   lostZone: [],
   stadium: [],
   revealedHand: [],
+  revealedCard: undefined,
   attachedCards: {},
   damageCounters: {},
   usedMarkers: {},
@@ -188,6 +190,7 @@ function normalizePublicPlayer(value?: Partial<PublicPlayerState> | null): Publi
     lostZone: Array.isArray(value?.lostZone) ? value.lostZone : [],
     stadium: Array.isArray(value?.stadium) ? value.stadium : [],
     revealedHand: Array.isArray(value?.revealedHand) ? value.revealedHand : [],
+    revealedCard: value?.revealedCard,
     attachedCards: value?.attachedCards || {},
     damageCounters: value?.damageCounters || {},
     usedMarkers: value?.usedMarkers || {},
@@ -568,6 +571,17 @@ function OnlineBattleApp() {
     }
   }
 
+  async function revealSelectedCardToOpponent() {
+    if (!selected || selected.owner !== playerId || !selected.privateCard || isMoving) return;
+    const card = selected.card as CardInstance;
+    const shownCard = toPublicCard(card);
+    await updateMyPublic((current) => ({
+      ...current,
+      revealedCard: shownCard,
+    }));
+    setMessage(`${shownCard.name}を相手に見せました。`);
+  }
+
   async function revealBenchFaceDownCards() {
     if (!publicRoom || isMoving) return;
     const next = atomicRevealBenchFaceDownCards({
@@ -886,6 +900,7 @@ function OnlineBattleApp() {
           onAttach={attachSelected}
           onClose={() => setSelected(null)}
           onMove={moveSelected}
+          onRevealToOpponent={revealSelectedCardToOpponent}
         />
       )}
 
@@ -969,6 +984,27 @@ function PlayerBoard({
           </button>
         ))}
       </div>
+
+      {publicState.revealedCard && (
+        <button
+          className="revealed-card-panel"
+          onClick={() =>
+            onSelect({
+              card: publicState.revealedCard!,
+              zone: "hand",
+              owner: playerId,
+              privateCard: false,
+              readOnly: true,
+            })
+          }
+        >
+          <img src={publicState.revealedCard.imageUrl} alt={publicState.revealedCard.name} loading="lazy" />
+          <span>
+            <small>相手に見せているカード</small>
+            <strong>{publicState.revealedCard.name}</strong>
+          </span>
+        </button>
+      )}
 
       <div className="zone-layout board-layout">
         <HiddenZone
@@ -1370,6 +1406,7 @@ function MoveDialog({
   onAttach,
   onClose,
   onMove,
+  onRevealToOpponent,
 }: {
   selected: SelectedCard;
   canMove: boolean;
@@ -1381,6 +1418,7 @@ function MoveDialog({
   onAttach: (targetUid: string) => void;
   onClose: () => void;
   onMove: (zone: MoveDestination) => void;
+  onRevealToOpponent: () => void;
 }) {
   const imageUrl = selected.card.imageUrl;
   const name = selected.card.name;
@@ -1410,6 +1448,11 @@ function MoveDialog({
           )}
           {canMove ? (
             <>
+              {selected.privateCard && (
+                <button className="face-down-action" disabled={isMoving} onClick={onRevealToOpponent}>
+                  相手に見せる
+                </button>
+              )}
               {targetCandidates.length > 0 && (
                 <div className="target-candidate-list">
                   <p className="target-candidate-title">このカードをどのポケモンに使いますか？</p>

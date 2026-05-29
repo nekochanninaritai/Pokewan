@@ -582,6 +582,44 @@ label span {
   margin: 10px 0;
 }
 
+.revealed-card-panel {
+  align-items: center;
+  background: #fffaf0;
+  border: 1px solid #ead7b8;
+  border-radius: 8px;
+  color: #15211e;
+  display: flex;
+  gap: 10px;
+  margin: 0 0 10px;
+  padding: 8px;
+  text-align: left;
+  width: 100%;
+}
+
+.revealed-card-panel img {
+  border-radius: 4px;
+  height: 72px;
+  object-fit: contain;
+  width: 52px;
+}
+
+.revealed-card-panel span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.revealed-card-panel small {
+  color: #7a5b1f;
+  font-weight: 800;
+}
+
+.revealed-card-panel strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .status.active {
   background: #fff0dc;
   border-color: #d26a23;
