@@ -590,34 +590,61 @@ label span {
   color: #15211e;
   display: flex;
   gap: 10px;
+  justify-content: space-between;
   margin: 0 0 10px;
   padding: 8px;
   text-align: left;
   width: 100%;
 }
 
-.revealed-card-panel img {
+.revealed-card-preview {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  display: flex;
+  flex: 1 1 auto;
+  gap: 10px;
+  min-height: 0;
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.revealed-card-preview img {
   border-radius: 4px;
   height: 72px;
   object-fit: contain;
   width: 52px;
 }
 
-.revealed-card-panel span {
+.revealed-card-preview span {
   display: grid;
   gap: 3px;
   min-width: 0;
 }
 
-.revealed-card-panel small {
+.revealed-card-preview small {
   color: #7a5b1f;
   font-weight: 800;
 }
 
-.revealed-card-panel strong {
+.revealed-card-preview strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.revealed-card-close {
+  background: #ffffff;
+  border: 1px solid #d9c6a5;
+  border-radius: 999px;
+  color: #5f441a;
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  font-weight: 900;
+  min-height: 32px;
+  padding: 0 12px;
 }
 
 .status.active {

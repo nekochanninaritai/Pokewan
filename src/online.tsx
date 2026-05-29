@@ -582,6 +582,13 @@ function OnlineBattleApp() {
     setMessage(`${shownCard.name}を相手に見せました。`);
   }
 
+  async function clearRevealedCard() {
+    await updateMyPublic((current) => ({
+      ...current,
+      revealedCard: undefined,
+    }));
+  }
+
   async function revealBenchFaceDownCards() {
     if (!publicRoom || isMoving) return;
     const next = atomicRevealBenchFaceDownCards({
@@ -834,6 +841,7 @@ function OnlineBattleApp() {
                   onSelect={setSelected}
                   onOpenList={setListViewer}
                   onToggleStatus={isMine ? toggleStatus : undefined}
+                  onClearRevealedCard={isMine ? clearRevealedCard : undefined}
                 />
               );
             })}
@@ -928,6 +936,7 @@ function PlayerBoard({
   onSelect,
   onOpenList,
   onToggleStatus,
+  onClearRevealedCard,
 }: {
   title: string;
   publicState: PublicPlayerState;
@@ -941,6 +950,7 @@ function PlayerBoard({
   onSelect: (selected: SelectedCard) => void;
   onOpenList: (viewer: Exclude<ListViewer, null>) => void;
   onToggleStatus?: (key: keyof PublicPlayerState["status"]) => void;
+  onClearRevealedCard?: () => void;
 }) {
   const isMine = playerId === viewerId;
   const attachedCount = Object.values(publicState.attachedCards || {}).reduce((total, cards) => total + cards.length, 0);
@@ -986,9 +996,10 @@ function PlayerBoard({
       </div>
 
       {publicState.revealedCard && (
-        <button
-          className="revealed-card-panel"
-          onClick={() =>
+        <div className="revealed-card-panel">
+          <button
+            className="revealed-card-preview"
+            onClick={() =>
             onSelect({
               card: publicState.revealedCard!,
               zone: "hand",
@@ -996,14 +1007,20 @@ function PlayerBoard({
               privateCard: false,
               readOnly: true,
             })
-          }
-        >
+            }
+          >
           <img src={publicState.revealedCard.imageUrl} alt={publicState.revealedCard.name} loading="lazy" />
           <span>
             <small>相手に見せているカード</small>
             <strong>{publicState.revealedCard.name}</strong>
           </span>
-        </button>
+          </button>
+          {onClearRevealedCard && (
+            <button className="revealed-card-close" onClick={onClearRevealedCard}>
+              閉じる
+            </button>
+          )}
+        </div>
       )}
 
       <div className="zone-layout board-layout">
