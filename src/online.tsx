@@ -30,7 +30,7 @@ type PlayerId = "A" | "B";
 type PrivateZone = "deck" | "hand" | "prizes";
 type PublicZone = "active" | "bench" | "discard" | "lostZone" | "stadium";
 type AnyZone = PrivateZone | PublicZone;
-type MoveDestination = AnyZone | "activeFaceDown" | "benchFaceDown" | "revealActive";
+type MoveDestination = AnyZone | "deckTop" | "deckBottom" | "activeFaceDown" | "benchFaceDown" | "revealActive";
 type CoinResult = "heads" | "tails";
 type ListViewer = { playerId: PlayerId; zone: "discard" | "lostZone" } | null;
 type TargetCandidate = {
@@ -230,6 +230,7 @@ function OnlineBattleApp() {
   const [selected, setSelected] = useState<SelectedCard | null>(null);
   const [isMoving, setIsMoving] = useState(false);
   const [deckPeekOpen, setDeckPeekOpen] = useState(false);
+  const [deckTopSevenOpen, setDeckTopSevenOpen] = useState(false);
   const [usedMarkerOpen, setUsedMarkerOpen] = useState(false);
   const [listViewer, setListViewer] = useState<ListViewer>(null);
   const [message, setMessage] = useState("ルームを作成、またはルームIDで参加してください。");
@@ -779,6 +780,10 @@ function OnlineBattleApp() {
                 <Eye />
                 自分だけ山札確認
               </button>
+              <button onClick={() => setDeckTopSevenOpen(true)} disabled={!privateState.deck.length}>
+                <Eye />
+                山札上7枚確認
+              </button>
               <button onClick={() => setUsedMarkerOpen(true)} disabled={myPublic.active.length + myPublic.bench.length === 0}>
                 <Sparkles />
                 USEDマーカー
@@ -834,6 +839,18 @@ function OnlineBattleApp() {
         />
       )}
 
+      {deckTopSevenOpen && (
+        <CardListModal
+          title={`山札 上から${Math.min(7, privateState.deck.length)}枚`}
+          cards={privateState.deck.slice(0, 7)}
+          onClose={() => setDeckTopSevenOpen(false)}
+          onSelect={(card) => {
+            setDeckTopSevenOpen(false);
+            setSelected({ card, zone: "deck", owner: playerId, privateCard: true });
+          }}
+        />
+      )}
+
       {listViewer && publicRoom && (
         <CardListModal
           title={`${PLAYER_LABELS[listViewer.playerId]}の${PUBLIC_ZONE_LABELS[listViewer.zone]} (${listCards.length}枚)`}
@@ -859,7 +876,11 @@ function OnlineBattleApp() {
             Boolean((selected.card as PublicCard).faceDown && privateState.faceDownPublicCards[(selected.card as PublicCard).uid])
           }
           isMoving={isMoving}
-          targetCandidates={selected.sourceCard ? [] : buildTargetCandidates(myPublic, selected.card.uid)}
+          targetCandidates={
+            selected.sourceCard
+              ? []
+              : buildTargetCandidates(myPublic, selected.card.uid).filter((candidate) => candidate.card.uid !== selected.attachedToUid)
+          }
           damage={selected.privateCard ? 0 : myPublic.damageCounters[((selected.sourceCard ?? selected.card) as PublicCard).uid] || 0}
           onAdjustDamage={adjustSelectedDamage}
           onAttach={attachSelected}
@@ -907,6 +928,17 @@ function PlayerBoard({
   onToggleStatus?: (key: keyof PublicPlayerState["status"]) => void;
 }) {
   const isMine = playerId === viewerId;
+  const attachedCount = Object.values(publicState.attachedCards || {}).reduce((total, cards) => total + cards.length, 0);
+  const totalCount =
+    publicState.deckCount +
+    publicState.handCount +
+    publicState.prizeCount +
+    publicState.active.length +
+    publicState.bench.length +
+    publicState.discard.length +
+    publicState.lostZone.length +
+    publicState.stadium.length +
+    attachedCount;
 
   return (
     <section className={`player-board ${isMine ? "mine" : "opponent"}`}>
@@ -916,6 +948,12 @@ function PlayerBoard({
           <span>山札 {publicState.deckCount}</span>
           <span>手札 {publicState.handCount}</span>
           <span>サイド {publicState.prizeCount}</span>
+          <span>バトル場 {publicState.active.length}</span>
+          <span>ベンチ {publicState.bench.length}</span>
+          <span>トラッシュ {publicState.discard.length}</span>
+          <span>ロスト {publicState.lostZone.length}</span>
+          <span>スタジアム {publicState.stadium.length}</span>
+          <span>合計 {totalCount}</span>
         </div>
       </header>
 
@@ -1407,6 +1445,16 @@ function MoveDialog({
                 </button>
               )}
               <div className="move-grid">
+                {!selected.attachedToUid && (
+                  <>
+                    <button disabled={isMoving} onClick={() => onMove("deckTop")}>
+                      山札の先頭へ
+                    </button>
+                    <button disabled={isMoving} onClick={() => onMove("deckBottom")}>
+                      山札の最後尾へ
+                    </button>
+                  </>
+                )}
                 {destinations.map((zone) => (
                   <button key={zone} disabled={isMoving || zone === selected.zone} onClick={() => onMove(zone)}>
                     {zoneLabel(zone)}へ
@@ -1656,6 +1704,14 @@ function addToPrivateZone(state: PrivatePlayerState, zone: PrivateZone, card: Ca
   };
 }
 
+function addToPrivateZoneBottom(state: PrivatePlayerState, zone: PrivateZone, card: CardInstance): PrivatePlayerState {
+  const deduped = removeFromPrivateZones(state, card.uid);
+  return {
+    ...deduped,
+    [zone]: [...deduped[zone], card],
+  };
+}
+
 function addToPublicZone(state: PublicPlayerState, zone: PublicZone, card: PublicCard): PublicPlayerState {
   const deduped = removeFromPublicZones(state, card.uid);
   return {
@@ -1725,7 +1781,13 @@ function atomicMoveSelectedCard({
   const uid = sourceCard.uid;
   const from = selected.zone;
   const toZone: AnyZone =
-    to === "activeFaceDown" || to === "revealActive" ? "active" : to === "benchFaceDown" ? "bench" : to;
+    to === "activeFaceDown" || to === "revealActive"
+      ? "active"
+      : to === "benchFaceDown"
+        ? "bench"
+        : to === "deckTop" || to === "deckBottom"
+          ? "deck"
+          : to;
   const currentPublic = publicRoom.playerStates[playerId];
   const attachedSourceUid = selected.attachedToUid;
   const attachedToMovedCard = currentPublic.attachedCards?.[uid] || [];
@@ -1771,6 +1833,8 @@ function atomicMoveSelectedCard({
       ...nextPublic,
       lostZone: [sourceCard as PublicCard, ...nextPublic.lostZone],
     };
+  } else if (attachedSourceUid && to === "deckBottom") {
+    nextPrivate = addToPrivateZoneBottom(nextPrivate, "deck", publicToPrivate(sourceCard as PublicCard));
   } else if (attachedSourceUid && isPrivateZone(toZone)) {
     nextPrivate = addToPrivateZone(nextPrivate, toZone, publicToPrivate(sourceCard as PublicCard));
   } else if (attachedSourceUid) {
@@ -1828,6 +1892,9 @@ function atomicMoveSelectedCard({
       ...nextPublic,
       discard: [...attachedToMovedCard, ...nextPublic.discard],
     };
+  } else if (to === "deckBottom") {
+    const privateCard = selected.privateCard ? (sourceCard as CardInstance) : faceDownPrivateCard || publicToPrivate(sourceCard as PublicCard);
+    nextPrivate = addToPrivateZoneBottom(nextPrivate, "deck", privateCard);
   } else if (isPrivateZone(toZone)) {
     const privateCard = selected.privateCard ? (sourceCard as CardInstance) : faceDownPrivateCard || publicToPrivate(sourceCard as PublicCard);
     nextPrivate = addToPrivateZone(nextPrivate, toZone, privateCard);
@@ -1910,14 +1977,25 @@ function atomicAttachSelectedCard({
   const from = selected.zone;
   const currentPublic = publicRoom.playerStates[playerId];
   const targetExists = [...currentPublic.active, ...currentPublic.bench].some((card) => card.uid === targetUid);
-  const existsInSource = selected.privateCard
+  const attachedSourceUid = selected.attachedToUid;
+  const existsInSource = attachedSourceUid
+    ? (currentPublic.attachedCards?.[attachedSourceUid] || []).some((card) => card.uid === uid)
+    : selected.privateCard
     ? isPrivateZone(from) && privateState[from].some((card) => card.uid === uid)
     : !isPrivateZone(from) && currentPublic[from].some((card) => card.uid === uid);
 
-  if (!targetExists || !existsInSource || uid === targetUid) return null;
+  if (!targetExists || !existsInSource || uid === targetUid || attachedSourceUid === targetUid) return null;
 
   let nextPrivate = removeFromPrivateZones(privateState, uid);
-  let nextPublic = removeFromPublicZones(currentPublic, uid);
+  let nextPublic = attachedSourceUid
+    ? {
+        ...currentPublic,
+        attachedCards: {
+          ...currentPublic.attachedCards,
+          [attachedSourceUid]: (currentPublic.attachedCards?.[attachedSourceUid] || []).filter((card) => card.uid !== uid),
+        },
+      }
+    : removeFromPublicZones(currentPublic, uid);
   const publicCard = selected.privateCard ? toPublicCard(selected.card as CardInstance) : (selected.card as PublicCard);
   const currentAttached = nextPublic.attachedCards[targetUid] || [];
   nextPublic = {
